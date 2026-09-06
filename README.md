@@ -92,8 +92,9 @@ first release, because retrofitting them is expensive.
 
 ## Non-goals
 
-- **Not a query engine.** DuckDB, Trino and Spark already do this well. The domain here is
-  metadata, health and maintenance — not `SELECT`.
+- **Not a query engine, and no embedded one.** DuckDB, Polars and DataFusion already do this well.
+  The domain here is metadata, health and maintenance — not `SELECT`. Integration runs the other
+  way: structured output that those tools consume.
 - **Not a catalog server.** It connects to catalogs; it does not become one.
 - **Not a web UI.** Terminal first. A TUI may follow; a browser will not.
 - **Not a replacement for Spark or Flink for data rewriting.** Operations that need an execution
@@ -115,13 +116,35 @@ catalog connection, the metadata reader, and the output layer, all of which they
 `W1`, `W2`, `W3`, `W5`. Every one of these writes is reversible, which is what makes them the
 right place to start.
 
+Also **server-side scan planning** (Iceberg 1.11's `/v1/.../plan` endpoint): let the catalog plan
+the scan and return filtered scan tasks instead of fanning out over manifests ourselves. It turns
+minutes into seconds on `R7`, `R8` and `R14` — and the Java client already exists, while
+iceberg-go has no support for it at all.
+
 **v0.3 — file deletion and pruning analysis.** `R14`, `R15`, `W4`, `W6`. Irreversible operations
 arrive only once the reporting that justifies them is trusted.
 
 **v0.4 — engine-backed maintenance.** `W7`, `W8`. Requires an execution capability; the design has
 to allow the tool to run without one.
 
-**Later.** `W9`, `W10`, catalog-wide diagnosis across many tables at once, and a TUI.
+**Later.** `W9`, `W10`, catalog-wide diagnosis across many tables at once, a TUI, a container image
+so the tool drops into Airflow and Dagster as a step, and OpenTelemetry export from `diagnose` so
+`PE` can run it as a fleet health exporter rather than a command.
+
+## Watching
+
+Not scheduled — direction the ecosystem is moving, tracked so the design does not preclude it.
+
+- **File Format API** (shipped in Iceberg 1.11.0) makes file formats pluggable. Consequence today:
+  treat `FileFormat` as an open set, never a closed `parquet | orc | avro`, and keep
+  format-specific work (`R15`) in a plugin rather than a branch in the core.
+- **Vortex** — [PR #15915](https://github.com/apache/iceberg/pull/15915) is open, not merged,
+  blocked on how Iceberg should admit new formats. Until it lands, `vortex` is not a legal
+  `file_format`, so there is nothing to support. Revisit when it merges. Lance follows for
+  AI/ML workloads.
+- **Arrow** — not used internally: the data here is metadata rows, and Arrow Java's off-heap
+  allocators buy nothing for that. Possible later as an output codec, behind the same pluggable
+  interface as NDJSON.
 
 ---
 

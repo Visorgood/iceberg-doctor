@@ -48,10 +48,28 @@ Decided in principle, not yet implemented. Treat as direction, not as fact on di
   lineage, `variant` and geospatial types) are available here before they reach PyIceberg or
   iceberg-go. Prefer core APIs over reimplementing spec logic.
 - **Typelevel stack** for the application layer: `cats`, `cats-effect`, `fs2`, `decline-effect`.
-- **Catalogs**: Hadoop (filesystem) and REST first. REST is where the ecosystem is heading –
-  Polaris, Lakekeeper, Unity, Nessie, Gravitino.
+- **Catalogs**: Hadoop (filesystem) and REST first. Polaris, Lakekeeper, Unity, Nessie and
+  Gravitino all speak the REST spec, so REST support covers all of them.
 - The imperative Iceberg Java API is expected to be wrapped in a typed, `IO`-based facade written
   by hand. That wrapper is intentional, not accidental complexity – see below.
+
+### Design constraints
+
+Decided 2026-09-06 while reviewing which ecosystem technologies to adopt. All three cost nothing
+now and prevent a refactor later.
+
+- **`FileFormat` is an open set**, never a closed `parquet | orc | avro`. Iceberg 1.11.0 shipped
+  the File Format API, which makes formats pluggable — Vortex and Lance are queued behind it.
+  Keep format-specific work (`R15`) in a plugin, not a branch in the core.
+- **Output format is a pluggable codec**, not a `--json` flag branching inside each command.
+  NDJSON ships first; Parquet and Arrow IPC become leaves added later.
+- **Catalogs are modelled by capability, not assumed uniform.** The REST spec standardises the
+  wire protocol — namespaces, commits, credential vending — but not RBAC, masking, lineage or
+  federation. Ask what a catalog supports (nested namespaces, views, credential vending,
+  server-side scan planning); do not assume.
+
+No new build dependency follows from any of this. Adding one requires a reason beyond the
+technology being current.
 
 ## Working with the author
 
@@ -102,6 +120,12 @@ Things that have already cost time, or will.
 - **Column identity is the field ID, not the name.** Every metric map, bound map, partition
   source and sort source keys on field ID. Indexing by name breaks silently after a rename, and
   renames are free in Iceberg.
+- **`iceberg-arrow` constrains the JDK.** It pulls in Arrow's Netty and unsafe allocators, which
+  [break on Java 25](https://github.com/apache/iceberg/issues/15930). Another reason not to reach
+  for Arrow internally.
+- **Do not embed DuckDB, Polars or DataFusion.** They are Rust/C++, so linking them means JNI or
+  a native driver, which rules out a GraalVM native-image build. It also puts the project head to
+  head with TableSleuth on its strongest axis. Emit output those tools consume instead.
 
 ## Related projects
 
