@@ -39,6 +39,12 @@ sbt run          # run the application
 sbt console      # REPL with the project on the classpath
 ```
 
+## Design documents
+
+- `docs/model.md` — the conceptual model: entities, attributes, actions, and the seam between
+  the catalog plane and the table plane.
+- `docs/diagnostics.md` — design of `diagnose` (`R9`).
+
 ## Intended architecture
 
 Decided in principle, not yet implemented. Treat as direction, not as fact on disk.
