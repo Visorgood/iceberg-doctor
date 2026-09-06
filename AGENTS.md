@@ -56,6 +56,15 @@ Decided in principle, not yet implemented. Treat as direction, not as fact on di
   lineage, `variant` and geospatial types) are available here before they reach PyIceberg or
   iceberg-go. Prefer core APIs over reimplementing spec logic.
 - **Typelevel stack** for the application layer: `cats`, `cats-effect`, `fs2`, `decline-effect`.
+  **Introduce each piece only when a task needs it, never in advance.** Cats Effect was added and
+  removed again on 2026-09-06: for listing a catalog it bought `Resource` over
+  `scala.util.Using`, `traverse_` over `foreach` and an `IO.blocking` that guarded nothing,
+  while making the code harder to read. Because learning is the point, applying a tool before
+  the problem it solves exists is worse than not applying it — the tool becomes ritual instead
+  of a decision. Concrete triggers to bring it back: `parTraverseN` with a `Semaphore` when
+  `R6`/`R7` read hundreds of manifests against object storage; `Resource` when catalog, FileIO
+  and an HTTP client have to nest; cancellation when a scan needs a timeout; `fs2` when a
+  listing stops fitting in memory. Plain Scala and the standard library until then.
 - **Catalogs**: Hadoop (filesystem) and REST first. Polaris, Lakekeeper, Unity, Nessie and
   Gravitino all speak the REST spec, so REST support covers all of them.
 - The imperative Iceberg Java API is expected to be wrapped in a typed, `IO`-based facade written
@@ -116,10 +125,12 @@ speed is not.** This changes what good help looks like here:
 
 Not yet established. To be filled in as decisions are made:
 
+- Test framework – **`munit` 1.3.6**, plain `FunSuite` and `FunFixture`. Move to
+  `munit-cats-effect` if and when Cats Effect returns.
 - Code style / formatting – `.scalafmt.conf` not yet added
-- Error modelling – typed errors vs `MonadError`, undecided
-- Effect abstraction – tagless final vs concrete `IO`, undecided
-- Test framework – `weaver-test` or `munit-cats-effect`, undecided
+- Error modelling – exceptions surface for now; typed errors when there is something to
+  distinguish
+- Effect abstraction – not applicable while the code is plain Scala; revisit with Cats Effect
 - Output rendering – must support both human-readable and `--json` from the first command
 
 When referring to functionality, use the use-case IDs from `README.md` (`R1`–`R16` for read path,
@@ -147,6 +158,19 @@ Things that have already cost time, or will.
 - **Column identity is the field ID, not the name.** Every metric map, bound map, partition
   source and sort source keys on field ID. Indexing by name breaks silently after a rename, and
   renames are free in Iceberg.
+- **Nothing in the metadata has to be parsed by hand.** `TableMetadata`, `ManifestFile`,
+  `DataFile` / `DeleteFile` and `PuffinReader` (all in `iceberg-core`) expose every field of
+  `metadata.json`, manifest lists, manifests and Puffin files. The `metadata → manifest-lists →
+  manifests → data` depth axis is a **cost model** — how much I/O the API is asked to do — not a
+  parsing plan.
+- **`ManifestEntry` is package-private.** `ManifestFiles.read(manifest, io)` yields the files but
+  not the entry `status` (`ADDED` / `EXISTING` / `DELETED`), which is what decides whether a file
+  is live at a snapshot. Use the metadata tables instead:
+  `MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.ENTRIES)` is public and
+  is the same mechanism behind Spark's `tbl.entries`. `FILES`, `MANIFESTS`, `PARTITIONS`,
+  `HISTORY`, `SNAPSHOTS` and `REFS` are available the same way — which is also why the read
+  commands are named after those tables. Scanning them with `IcebergGenerics` needs the
+  `iceberg-data` module; `DataTask.rows()` works with `iceberg-core` alone.
 - **`iceberg-arrow` constrains the JDK.** It pulls in Arrow's Netty and unsafe allocators, which
   [break on Java 25](https://github.com/apache/iceberg/issues/15930). Another reason not to reach
   for Arrow internally.
