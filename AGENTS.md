@@ -55,6 +55,17 @@ Decided in principle, not yet implemented. Treat as direction, not as fact on di
 
 ### Design constraints
 
+- **Do not build a vocabulary on top of Iceberg's.** Users work in Iceberg's own terms —
+  snapshots, manifests, data files, partition specs, sort orders, refs, and table properties by
+  their real names. The tool navigates and measures; it does not rename or reinterpret. Before
+  introducing any new noun, check whether Iceberg already has one. `docs/diagnostics.md` lists
+  the three exceptions and the bar for a fourth.
+- **`diagnose` (`R9`) ships conformance checks only** in the first versions: does the table match
+  the thresholds it declares in its own properties. Every threshold is either a table property or
+  Iceberg's documented default, and each finding says which. Policy and sanity checks — anything
+  where the threshold is the tool's or the user's opinion — are deferred. See
+  `docs/diagnostics.md`.
+
 Decided 2026-09-06 while reviewing which ecosystem technologies to adopt. All three cost nothing
 now and prevent a refactor later.
 
