@@ -68,8 +68,8 @@ is the one capability this tool may reasonably lack.
 | **W4** | **Expire snapshots.** Drop snapshots past a retention policy, and optionally delete the files that become unreachable. | metadata commit + file deletion | PE | v0.3 |
 | **W5** | **Rewrite manifests.** Recluster manifests to reduce the metadata scanned per query. Moves no data. | metadata commit | PE | v0.2 |
 | **W6** | **Remove orphan files.** Delete the unreachable files identified by R16. | file deletion | PE | v0.3 |
-| **W7** | **Compact.** Rewrite small data files into larger ones. Exposed as an intent (`compact`), not as the underlying procedure name. | data rewrite | DE, PE | v0.4 |
-| **W8** | **Merge deletes.** Rewrite position deletes and deletion vectors into their data files. | data rewrite | DE, PE | v0.4 |
+| **W7** | **Rewrite data files.** Combine small data files into larger ones. | data rewrite | DE, PE | v0.4 |
+| **W8** | **Rewrite position delete files.** Fold position deletes and deletion vectors back into their data files. | data rewrite | DE, PE | v0.4 |
 | **W9** | **Copy table.** Copy a whole table, or a subset of partitions, to a new table. | data rewrite | DE | later |
 | **W10** | **Table DDL.** Create tables; evolve schema and partition spec. | metadata commit | DE | later |
 

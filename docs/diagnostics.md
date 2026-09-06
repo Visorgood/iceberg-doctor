@@ -72,7 +72,7 @@ measurement  the observed facts, in Iceberg's units
 threshold    value + source (table-property | iceberg-default)
 impact       bytes, or file opens (see below)
 severity     derived, never assigned by the check
-remedy       tool command + the Iceberg operation it corresponds to
+remedy       the Iceberg operation that fixes it, named as Iceberg names it
 verify       the metadata-table query that reproduces the measurement
 depth        which metadata layer was read to produce this
 ```
@@ -152,9 +152,9 @@ are actually ordered requires reading the file.
 2. **`schema_version` is present in JSON output from the first release.**
 3. **Exit codes**: `0` nothing at or above the gate, `1` findings at or above it, `2` the tool
    itself failed. The gate is a flag.
-4. **Remedies are structured**, so a DAG branches on the operation instead of parsing prose. Each
-   names both the `iceberg-doctor` command and the Iceberg operation behind it — the command is
-   discoverable, the operation is traceable to the spec.
+4. **Remedies are structured**, so a DAG branches on the operation instead of parsing prose. The
+   operation is named as Iceberg names it — `rewrite_data_files`, `expire_snapshots` — which is
+   also the command that performs it, so there is nothing to translate.
 5. **Suppressions** map table + property to a reason and an expiry. Without them a DAG drowns in
    known findings within a month and stops being read.
 6. **Findings are pinned to a snapshot id, and report it.** A diagnosis taken while writes are

@@ -44,6 +44,8 @@ sbt console      # REPL with the project on the classpath
 - `docs/model.md` — the conceptual model: entities, attributes, actions, and the seam between
   the catalog plane and the table plane.
 - `docs/diagnostics.md` — design of `diagnose` (`R9`).
+- `docs/cli.md` — the `v0.1` command surface and output shapes. Read commands are named after
+  Iceberg's metadata tables; write commands after Iceberg's operations.
 
 ## Intended architecture
 
@@ -61,6 +63,14 @@ Decided in principle, not yet implemented. Treat as direction, not as fact on di
 
 ### Design constraints
 
+- **Command names are Iceberg names, spelled exactly.** Read commands take the names of Iceberg's
+  metadata tables (`snapshots`, `manifests`, `files`, `partitions`, `refs`, `history`,
+  `metadata_log_entries`); write commands take the names of its stored procedures
+  (`expire_snapshots`, `rewrite_data_files`, `rewrite_manifests`, `rollback_to_snapshot`,
+  `fast_forward`). Canonical spelling is Iceberg's `snake_case`, with `kebab-case` accepted as an
+  alias. No friendlier synonyms — an alias has to be explained, translated in every remedy, and
+  remembered as a second name. Only `catalogs`, `ls`, `describe`, `properties`, `commits`,
+  `diagnose` and `diff` have no Iceberg counterpart; the last three are derived and say so.
 - **Do not build a vocabulary on top of Iceberg's.** Users work in Iceberg's own terms —
   snapshots, manifests, data files, partition specs, sort orders, refs, and table properties by
   their real names. The tool navigates and measures; it does not rename or reinterpret. Before
