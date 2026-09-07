@@ -1,238 +1,42 @@
 package io.github.visorgood.icebergdoctor
 
 import io.github.visorgood.icebergdoctor.Render.lines
-import org.apache.hadoop.conf.Configuration
 import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
-import org.apache.iceberg.hadoop.HadoopCatalog
-import org.apache.iceberg.{HasTableOperations, PartitionSpec, Schema, SortOrder, Table}
 
-import scala.jdk.CollectionConverters.*
 import scala.util.Using
 
-/** One row of `ls`: something that lives in a catalog, named in full.
+/** Parses the command line, runs the matching read, prints the result.
   *
-  * Iceberg has no noun for "a namespace or a table" — it lists them through separate calls — so
-  * this is ours. Full names mean every row can be pasted straight into another command.
-  */
-final case class CatalogEntry(name: String, kind: CatalogEntry.Kind)
-
-object CatalogEntry:
-  /** Declared namespace-first so sorting groups namespaces above tables. */
-  enum Kind:
-    case Namespace, Table
-
-/** The snapshot a table currently points at, with the running totals Iceberg keeps in its
-  * summary. The totals are optional because a summary is only as complete as its writer made it.
-  */
-final case class CurrentSnapshot(
-    id: Long,
-    timestampMs: Long,
-    operation: String,
-    dataFiles: Option[Long],
-    deleteFiles: Option[Long],
-    records: Option[Long],
-    sizeInBytes: Option[Long]
-)
-
-/** The physical shape of a table (R3).
-  *
-  * Every field here comes out of `metadata.json`: Iceberg maintains the file and byte totals in
-  * each snapshot summary, so no manifest is read to produce this.
-  */
-final case class TableLayout(
-    formatVersion: Int,
-    location: String,
-    uuid: String,
-    lastUpdatedMs: Long,
-    snapshotCount: Int,
-    refs: List[String],
-    current: Option[CurrentSnapshot]
-)
-
-/** One snapshot in a table's history (R4), with what that commit changed.
-  *
-  * The counts here are per-commit deltas from the snapshot summary, not the running totals of
-  * [[CurrentSnapshot]] — a snapshot records both, and confusing them is easy.
-  */
-final case class SnapshotRow(
-    id: Long,
-    parentId: Option[Long],
-    sequenceNumber: Long,
-    timestampMs: Long,
-    operation: String,
-    addedFiles: Option[Long],
-    removedFiles: Option[Long],
-    addedRecords: Option[Long],
-    removedRecords: Option[Long],
-    engine: Option[String],
-    refs: List[String]
-)
-
-/** The logical shape of a table (R2).
-  *
-  * Iceberg's own `Schema`, `PartitionSpec` and `SortOrder` are carried as-is: we only read
-  * fields off them, so mirroring them in Scala would duplicate the spec for no gain.
-  */
-final case class TableDescription(
-    name: String,
-    layout: TableLayout,
-    schema: Schema,
-    spec: PartitionSpec,
-    sortOrder: SortOrder,
-    properties: Map[String, String]
-)
-
-/** First cuts at R1 (`ls`) and R2 (`describe`).
-  *
-  * Deliberately not general yet — one catalog type, no output formats.
+  * Reading lives in `Iceberg.scala`, formatting in `Render.scala`; what is left here is the glue.
   */
 object Main:
-
-  private def openCatalog(warehouse: String): HadoopCatalog =
-    val catalog = new HadoopCatalog()
-    catalog.setConf(new Configuration())
-    catalog.initialize("local", Map("warehouse" -> warehouse).asJava)
-    catalog
-
-  // ---------------------------------------------------------------- R1: ls
-
-  /** What sits directly inside `ns` — one level only, like `ls` itself.
-    *
-    * Sorted because the catalog returns filesystem order, so which rows `--limit` keeps would
-    * otherwise vary between runs.
-    */
-  private[icebergdoctor] def list(catalog: HadoopCatalog, ns: Namespace): List[CatalogEntry] =
-    val namespaces = catalog
-      .listNamespaces(ns)
-      .asScala
-      .toList
-      .map(child => CatalogEntry(child.toString, CatalogEntry.Kind.Namespace))
-
-    // HadoopCatalog rejects listTables on the root namespace — in its layout a table always
-    // lives inside a namespace directory, never at the warehouse root.
-    val tables =
-      if ns.isEmpty then Nil
-      else
-        catalog
-          .listTables(ns)
-          .asScala
-          .toList
-          .map(id => CatalogEntry(id.toString, CatalogEntry.Kind.Table))
-
-    (namespaces ::: tables).sortBy(entry => (entry.kind.ordinal, entry.name))
-
-  /** Says how much the limit cut off, when it cut anything. */
-  private[icebergdoctor] def limitNote(total: Int, limit: Int): Option[String] =
-    Option.when(limit > 0 && total > limit)(
-      s"showing $limit of $total — raise --limit to see the rest"
-    )
-
-  // ---------------------------------------------------------- R2: describe
-
-  private def layoutOf(table: Table): TableLayout =
-    // formatVersion, uuid and lastUpdatedMillis live on TableMetadata, which `Table` itself does
-    // not expose; every catalog-loaded table implements HasTableOperations to reach it.
-    val metadata = table.asInstanceOf[HasTableOperations].operations.current
-    TableLayout(
-      formatVersion = metadata.formatVersion,
-      location = table.location,
-      uuid = metadata.uuid,
-      lastUpdatedMs = metadata.lastUpdatedMillis,
-      snapshotCount = table.snapshots.asScala.size,
-      refs = table.refs.asScala.keys.toList.sorted,
-      current = Option(table.currentSnapshot).map { snapshot =>
-        val summary = snapshot.summary.asScala
-        def total(key: String) = summary.get(key).flatMap(_.toLongOption)
-        CurrentSnapshot(
-          id = snapshot.snapshotId,
-          timestampMs = snapshot.timestampMillis,
-          operation = snapshot.operation,
-          dataFiles = total("total-data-files"),
-          deleteFiles = total("total-delete-files"),
-          records = total("total-records"),
-          sizeInBytes = total("total-files-size")
-        )
-      }
-    )
-
-  private[icebergdoctor] def describe(
-      catalog: HadoopCatalog,
-      id: TableIdentifier
-  ): TableDescription =
-    val table = catalog.loadTable(id)
-    TableDescription(
-      name = id.toString,
-      layout = layoutOf(table),
-      schema = table.schema,
-      spec = table.spec,
-      sortOrder = table.sortOrder,
-      properties = table.properties.asScala.toMap
-    )
-
-  // --------------------------------------------------------- R4: snapshots
-
-  /** The whole history, newest first. Everything comes from `metadata.json`. */
-  private[icebergdoctor] def snapshots(
-      catalog: HadoopCatalog,
-      id: TableIdentifier
-  ): List[SnapshotRow] =
-    val table = catalog.loadTable(id)
-    // A snapshot does not know which refs point at it, so invert the table's ref map once.
-    val refsBySnapshot = table.refs.asScala.toList
-      .groupMap((_, ref) => ref.snapshotId)((name, _) => name)
-      .view
-      .mapValues(_.toList.sorted)
-      .toMap
-
-    table.snapshots.asScala.toList
-      .map { snapshot =>
-        val summary = snapshot.summary.asScala
-        def delta(key: String) = summary.get(key).flatMap(_.toLongOption)
-        SnapshotRow(
-          id = snapshot.snapshotId,
-          parentId = Option(snapshot.parentId).map(_.longValue),
-          sequenceNumber = snapshot.sequenceNumber,
-          timestampMs = snapshot.timestampMillis,
-          operation = snapshot.operation,
-          addedFiles = delta("added-data-files"),
-          removedFiles = delta("deleted-data-files"),
-          addedRecords = delta("added-records"),
-          removedRecords = delta("deleted-records"),
-          // Only engines stamp this; a commit made through the Java API leaves it unset.
-          engine = summary.get("engine-name").map { name =>
-            summary.get("engine-version").fold(name)(version => s"$name $version")
-          },
-          refs = refsBySnapshot.getOrElse(snapshot.snapshotId, Nil)
-        )
-      }
-      .sortBy(row => (row.timestampMs, row.sequenceNumber))
-      .reverse
-
-  // -------------------------------------------------------------- dispatch
 
   private def parseNamespace(text: String): Namespace =
     Namespace.of(text.split('.').filter(_.nonEmpty)*)
 
+  /** Prints at most `limit` rows, then says what was left out.
+    *
+    * The instance is on `List[A]`, not `A`: a listing is rendered whole so its columns line up.
+    */
+  private def printLimited[A](rows: List[A], limit: Int)(using Render[List[A]]): Unit =
+    val shown = if limit <= 0 then rows else rows.take(limit)
+    shown.lines.foreach(println)
+    Render.limitNote(rows.size, limit).foreach(println)
+
   private def run(invocation: Invocation): Unit = invocation match
     case Invocation.Ls(warehouse, namespace, limit) =>
-      Using.resource(openCatalog(warehouse)) { catalog =>
-        val entries = list(catalog, namespace.fold(Namespace.empty)(parseNamespace))
-        val shown   = if limit <= 0 then entries else entries.take(limit)
-        shown.lines.foreach(println)
-        limitNote(entries.size, limit).foreach(println)
+      Using.resource(Iceberg.hadoopCatalog(warehouse)) { catalog =>
+        printLimited(Iceberg.list(catalog, namespace.fold(Namespace.empty)(parseNamespace)), limit)
       }
 
     case Invocation.Describe(warehouse, table) =>
-      Using.resource(openCatalog(warehouse)) { catalog =>
-        describe(catalog, TableIdentifier.parse(table)).lines.foreach(println)
+      Using.resource(Iceberg.hadoopCatalog(warehouse)) { catalog =>
+        Iceberg.describe(catalog, TableIdentifier.parse(table)).lines.foreach(println)
       }
 
     case Invocation.Snapshots(warehouse, table, limit) =>
-      Using.resource(openCatalog(warehouse)) { catalog =>
-        val rows  = snapshots(catalog, TableIdentifier.parse(table))
-        val shown = if limit <= 0 then rows else rows.take(limit)
-        shown.lines.foreach(println)
-        limitNote(rows.size, limit).foreach(println)
+      Using.resource(Iceberg.hadoopCatalog(warehouse)) { catalog =>
+        printLimited(Iceberg.snapshots(catalog, TableIdentifier.parse(table)), limit)
       }
 
   def main(args: Array[String]): Unit =

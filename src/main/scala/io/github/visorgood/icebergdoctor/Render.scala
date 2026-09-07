@@ -19,6 +19,12 @@ object Render:
 
   def apply[A](using render: Render[A]): Render[A] = render
 
+  /** Says how much `--limit` cut off, when it cut anything. */
+  def limitNote(total: Int, limit: Int): Option[String] =
+    Option.when(limit > 0 && total > limit)(
+      s"showing $limit of $total — raise --limit to see the rest"
+    )
+
   extension [A](value: A)(using render: Render[A]) def lines: List[String] = render.lines(value)
 
   // -- shared layout helpers -------------------------------------------------

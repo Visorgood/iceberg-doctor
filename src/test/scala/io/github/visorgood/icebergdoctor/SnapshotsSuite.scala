@@ -74,7 +74,7 @@ class SnapshotsSuite extends munit.FunSuite:
   // -- against a real catalog ------------------------------------------------
 
   warehouse.test("history is newest first and links each commit to its parent") { fixture =>
-    val rows = Main.snapshots(fixture.catalog, Warehouse.configured)
+    val rows = Iceberg.snapshots(fixture.catalog, Warehouse.configured)
 
     assertEquals(rows.size, 2)
     val List(newest, oldest) = rows: @unchecked
@@ -84,7 +84,7 @@ class SnapshotsSuite extends munit.FunSuite:
   }
 
   warehouse.test("per-commit deltas are the commit's own, not the running total") { fixture =>
-    val List(newest, oldest) = Main.snapshots(fixture.catalog, Warehouse.configured): @unchecked
+    val List(newest, oldest) = Iceberg.snapshots(fixture.catalog, Warehouse.configured): @unchecked
     // The fixture appends 2 files then 3. The totals would be 2 and 5.
     assertEquals(oldest.addedFiles, Some(2L))
     assertEquals(newest.addedFiles, Some(3L))
@@ -92,11 +92,11 @@ class SnapshotsSuite extends munit.FunSuite:
   }
 
   warehouse.test("only the snapshot a ref points at carries that ref") { fixture =>
-    val List(newest, oldest) = Main.snapshots(fixture.catalog, Warehouse.configured): @unchecked
+    val List(newest, oldest) = Iceberg.snapshots(fixture.catalog, Warehouse.configured): @unchecked
     assertEquals(newest.refs, List("main"))
     assertEquals(oldest.refs, Nil)
   }
 
   warehouse.test("a table that was never written to has no snapshots") { fixture =>
-    assertEquals(Main.snapshots(fixture.catalog, Warehouse.plain), Nil)
+    assertEquals(Iceberg.snapshots(fixture.catalog, Warehouse.plain), Nil)
   }

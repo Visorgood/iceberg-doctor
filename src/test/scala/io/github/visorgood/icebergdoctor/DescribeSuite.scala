@@ -147,7 +147,7 @@ class DescribeSuite extends munit.FunSuite:
   // -- describe against a real catalog ---------------------------------------
 
   warehouse.test("describe reads the spec, sort order and properties of a table") { fixture =>
-    val described = Main.describe(fixture.catalog, Warehouse.configured)
+    val described = Iceberg.describe(fixture.catalog, Warehouse.configured)
     val rendered  = described.lines
 
     assertEquals(described.name, "prod.events.clicks")
@@ -162,7 +162,7 @@ class DescribeSuite extends munit.FunSuite:
   }
 
   warehouse.test("the layout comes from metadata.json, with the summary totals") { fixture =>
-    val layout = Main.describe(fixture.catalog, Warehouse.configured).layout
+    val layout = Iceberg.describe(fixture.catalog, Warehouse.configured).layout
 
     assertEquals(layout.formatVersion, 2)
     assertEquals(layout.refs, List("main"))
@@ -178,7 +178,7 @@ class DescribeSuite extends munit.FunSuite:
   }
 
   warehouse.test("a table that was never written to has no current snapshot") { fixture =>
-    val layout = Main.describe(fixture.catalog, Warehouse.plain).layout
+    val layout = Iceberg.describe(fixture.catalog, Warehouse.plain).layout
     assertEquals(layout.current, None)
     assertEquals(layout.snapshotCount, 0)
     assert(layout.location.endsWith("prod/events/impressions"), layout.location)

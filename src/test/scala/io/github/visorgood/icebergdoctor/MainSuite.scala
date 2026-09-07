@@ -26,21 +26,21 @@ class MainSuite extends munit.FunSuite:
 
   warehouse.test("the root lists top-level namespaces only") { fixture =>
     assertEquals(
-      Main.list(fixture.catalog, Namespace.empty),
+      Iceberg.list(fixture.catalog, Namespace.empty),
       List(CatalogEntry("prod", Kind.Namespace), CatalogEntry("staging", Kind.Namespace))
     )
   }
 
   warehouse.test("a namespace lists its own children, not its grandchildren") { fixture =>
     assertEquals(
-      Main.list(fixture.catalog, Namespace.of("prod")),
+      Iceberg.list(fixture.catalog, Namespace.of("prod")),
       List(CatalogEntry("prod.events", Kind.Namespace))
     )
   }
 
   warehouse.test("tables are listed with their full name") { fixture =>
     assertEquals(
-      Main.list(fixture.catalog, Namespace.of("prod", "events")),
+      Iceberg.list(fixture.catalog, Namespace.of("prod", "events")),
       List(
         CatalogEntry("prod.events.clicks", Kind.Table),
         CatalogEntry("prod.events.impressions", Kind.Table)
@@ -79,20 +79,20 @@ class MainSuite extends munit.FunSuite:
   }
 
   test("no note when everything fits") {
-    assertEquals(Main.limitNote(total = 3, limit = 10), None)
+    assertEquals(Render.limitNote(total = 3, limit = 10), None)
   }
 
   test("the note says how much was cut off") {
     assertEquals(
-      Main.limitNote(total = 312, limit = 10),
+      Render.limitNote(total = 312, limit = 10),
       Some("showing 10 of 312 — raise --limit to see the rest")
     )
   }
 
   test("no note when the total exactly fills the limit") {
-    assertEquals(Main.limitNote(total = 10, limit = 10), None)
+    assertEquals(Render.limitNote(total = 10, limit = 10), None)
   }
 
   test("limit 0 means all, so there is nothing to note") {
-    assertEquals(Main.limitNote(total = 312, limit = 0), None)
+    assertEquals(Render.limitNote(total = 312, limit = 0), None)
   }
