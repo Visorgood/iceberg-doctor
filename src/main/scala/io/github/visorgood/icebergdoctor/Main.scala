@@ -1,8 +1,10 @@
 package io.github.visorgood.icebergdoctor
 
+import io.github.visorgood.icebergdoctor.Render.lines
 import org.apache.hadoop.conf.Configuration
-import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
 import org.apache.iceberg.hadoop.HadoopCatalog
+import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
 
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
@@ -10,9 +12,22 @@ import scala.util.Using
 /** A namespace and everything found beneath it. */
 final case class NamespaceTree(name: String, tables: List[String], children: List[NamespaceTree])
 
-/** First cut at R1: list what a Hadoop catalog contains.
+/** The logical shape of a table (R2).
   *
-  * Deliberately not general yet — one catalog type, no option parsing, no output formats.
+  * Iceberg's own `Schema`, `PartitionSpec` and `SortOrder` are carried as-is: we only read
+  * fields off them, so mirroring them in Scala would duplicate the spec for no gain.
+  */
+final case class TableDescription(
+    name: String,
+    schema: Schema,
+    spec: PartitionSpec,
+    sortOrder: SortOrder,
+    properties: Map[String, String]
+)
+
+/** First cuts at R1 (`ls`) and R2 (`describe`).
+  *
+  * Deliberately not general yet — one catalog type, no output formats.
   */
 object Main:
 
@@ -36,17 +51,36 @@ object Main:
       )
     }
 
-  private[icebergdoctor] def render(trees: List[NamespaceTree], indent: String = ""): List[String] =
-    trees.flatMap { tree =>
-      val here = s"$indent${tree.name}/" :: tree.tables.map(table => s"$indent  $table")
-      here ::: render(tree.children, indent + "  ")
-    }
+  private[icebergdoctor] def describe(
+      catalog: HadoopCatalog,
+      id: TableIdentifier
+  ): TableDescription =
+    val table = catalog.loadTable(id)
+    TableDescription(
+      name = id.toString,
+      schema = table.schema,
+      spec = table.spec,
+      sortOrder = table.sortOrder,
+      properties = table.properties.asScala.toMap
+    )
+
+  private def run(invocation: Invocation): Unit = invocation match
+    case Invocation.Ls(warehouse) =>
+      Using
+        .resource(openCatalog(warehouse))(walk(_, Namespace.empty))
+        .lines
+        .foreach(println)
+    case Invocation.Describe(warehouse, table) =>
+      Using
+        .resource(openCatalog(warehouse))(describe(_, TableIdentifier.parse(table)))
+        .lines
+        .foreach(println)
 
   def main(args: Array[String]): Unit =
-    args.toList match
-      case warehouse :: Nil =>
-        val tree = Using.resource(openCatalog(warehouse))(walk(_, Namespace.empty))
-        render(tree).foreach(println)
-      case _ =>
-        println("usage: iceberg-doctor <warehouse-path>")
+    Cli.parse(args.toList) match
+      case Right(invocation) => run(invocation)
+      // decline returns Help for both `--help` and a parse failure; only the latter has errors.
+      case Left(help) if help.errors.isEmpty => println(help)
+      case Left(help) =>
+        System.err.println(help)
         sys.exit(2)

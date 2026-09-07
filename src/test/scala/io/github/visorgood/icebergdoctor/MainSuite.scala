@@ -1,11 +1,12 @@
 package io.github.visorgood.icebergdoctor
 
 import org.apache.iceberg.catalog.Namespace
+import io.github.visorgood.icebergdoctor.Render.lines
 import org.apache.iceberg.hadoop.HadoopCatalog
 
 import java.nio.file.Path
 
-/** Tests `Main.walk` and `Main.render` — our code, against a real catalog. */
+/** Tests `Main.walk` and the `Render` instance for `NamespaceTree` — R1. */
 class MainSuite extends munit.FunSuite:
 
   private case class Fixture(dir: Path, catalog: HadoopCatalog)
@@ -46,7 +47,7 @@ class MainSuite extends munit.FunSuite:
       NamespaceTree("staging", List("raw"), Nil)
     )
     assertEquals(
-      Main.render(tree),
+      tree.lines,
       List(
         "prod/",
         "  events/",
@@ -58,5 +59,5 @@ class MainSuite extends munit.FunSuite:
   }
 
   test("render of nothing is nothing") {
-    assertEquals(Main.render(Nil), Nil)
+    assertEquals(List.empty[NamespaceTree].lines, Nil)
   }

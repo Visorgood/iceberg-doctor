@@ -1,7 +1,7 @@
 package io.github.visorgood.icebergdoctor
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.iceberg.Schema
+import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
 import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
 import org.apache.iceberg.hadoop.HadoopCatalog
 import org.apache.iceberg.types.Types
@@ -31,10 +31,34 @@ object Warehouse:
     List("staging")        -> List("raw")
   )
 
-  private val schema = new Schema(
+  /** The one table that carries a partition spec, a sort order and properties.
+    *
+    * The others are left bare so that both shapes are covered — `describe` has to render an
+    * unpartitioned, unsorted table without properties just as readably.
+    */
+  val configured: TableIdentifier =
+    TableIdentifier.of(Namespace.of("prod", "events"), "clicks")
+
+  /** A table left with no spec, no sort order and no properties of its own. */
+  val plain: TableIdentifier =
+    TableIdentifier.of(Namespace.of("prod", "events"), "impressions")
+
+  val schema: Schema = new Schema(
     Types.NestedField.required(1, "id", Types.LongType.get()),
     Types.NestedField.optional(2, "event_ts", Types.TimestampType.withZone()),
-    Types.NestedField.optional(3, "name", Types.StringType.get())
+    Types.NestedField.optional(3, "country", Types.StringType.get())
+  )
+
+  private def specOf(s: Schema) =
+    PartitionSpec.builderFor(s).day("event_ts").identity("country").build()
+
+  private def sortOrderOf(s: Schema) =
+    SortOrder.builderFor(s).asc("country").desc("event_ts").build()
+
+  /** Real Iceberg property names, so the values mean something to `diagnose` later. */
+  val properties: Map[String, String] = Map(
+    "write.target-file-size-bytes"       -> "134217728",
+    "history.expire.max-snapshot-age-ms" -> "604800000"
   )
 
   def open(warehouse: Path): HadoopCatalog =
@@ -50,7 +74,15 @@ object Warehouse:
         val ns = Namespace.of(levels*)
         catalog.createNamespace(ns)
         for table <- tables do
-          catalog.createTable(TableIdentifier.of(ns, table), schema)
+          val id = TableIdentifier.of(ns, table)
+          if id == configured then
+            catalog
+              .buildTable(id, schema)
+              .withPartitionSpec(specOf(schema))
+              .withSortOrder(sortOrderOf(schema))
+              .withProperties(properties.asJava)
+              .create()
+          else catalog.createTable(id, schema)
     }
 
   /** A populated warehouse in a fresh temp directory. The caller deletes it. */

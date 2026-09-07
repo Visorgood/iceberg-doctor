@@ -14,6 +14,9 @@ lazy val root = (project in file("."))
       // The shaded client pair is two jars — hadoop-common declares 67 dependencies.
       "org.apache.hadoop"  %  "hadoop-client-api"     % hadoopVersion,
       "org.apache.hadoop"  %  "hadoop-client-runtime" % hadoopVersion % Runtime,
+      // Argument parsing. `decline` (not `decline-effect`) brings only cats-core;
+      // cats-laws and discipline-scalatest in its pom are test-scoped.
+      "com.monovore"       %% "decline"               % "2.6.2",
       // Silences SLF4J's "no providers were found" banner on every run.
       // Swap for a real backend once the tool has something worth logging.
       "org.slf4j"          %  "slf4j-nop"             % "2.0.17" % Runtime,

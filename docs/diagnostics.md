@@ -37,6 +37,18 @@ own.** Every threshold comes from one of exactly two places, and the finding alw
 
 There is no third source. Nothing is invented, so nothing is arguable except the facts.
 
+**One caveat on `table-property`.** "The table set this explicitly" is softer than it sounds:
+writers put properties into `metadata.json` at creation time that nobody chose. Creating a table
+through `HadoopCatalog` with two properties of our own produced three — Iceberg had written
+`write.parquet.compression-codec: zstd` itself, stored identically to the ones we set and
+indistinguishable from them afterwards.
+
+None of the properties the conformance checks read appeared this way, so the design holds. But
+the claim a finding makes is precisely *this value is in the table's properties*, not *someone
+deliberately chose it*. Each check should confirm, when it is implemented, that its property is
+not one a writer injects — otherwise the tool measures conformance to a default the owner never
+saw.
+
 ## A check is identified by what it checks
 
 A conformance check does not get a made-up code. **Its identity is the Iceberg property or

@@ -34,7 +34,8 @@ development machine and must not be selected.
 
 ```bash
 sbt compile      # compile
-sbt test         # run tests
+sbt test         # run AFFECTED tests only — sbt 2 delegates this to testQuick
+sbt "testOnly *" # run every test
 sbt run          # run the application
 sbt console      # REPL with the project on the classpath
 ```
@@ -143,6 +144,10 @@ Things that have already cost time, or will.
 - **sbt 2 changed the output layout.** Compiled classes land in
   `target/out/jvm/scala-3.9.0/<project>/classes/`, not sbt 1's `target/scala-3.9.0/classes/`.
   Recipes found online that reference the old path are for sbt 1.
+- **`sbt test` does not run every test.** In sbt 2 it delegates to `testQuick`, which runs only
+  what changed since the last run, and its record lives in the shared cache under
+  `~/Library/Caches/sbt/v2/` — so it survives `clean`. A suite that is already green is simply
+  skipped, which reads as "the tests disappeared". Use `sbt "testOnly *"` for a full run.
 - **Most sbt documentation online is for sbt 1.** Simple settings are identical, but custom task
   definitions differ. Check which major version a source is describing before following it.
 - **`scala-library` is now published at the Scala 3 version.** Since Scala 3.8 the standard
