@@ -7,6 +7,7 @@ import com.monovore.decline.{Command as DeclineCommand, Help, Opts}
 enum Invocation:
   case Ls(warehouse: String, namespace: Option[String], limit: Int)
   case Describe(warehouse: String, table: String)
+  case Snapshots(warehouse: String, table: String, limit: Int)
 
 object Cli:
 
@@ -36,11 +37,22 @@ object Cli:
       (warehouse, Opts.argument[String]("table")).mapN(Invocation.Describe.apply)
     }
 
+  private val snapshots =
+    Opts.subcommand("snapshots", "Show a table's snapshot history, newest first.") {
+      (
+        warehouse,
+        Opts.argument[String]("table"),
+        Opts
+          .option[Int]("limit", s"How many snapshots to show (default $DefaultLimit; 0 means all).", short = "n")
+          .withDefault(DefaultLimit)
+      ).mapN(Invocation.Snapshots.apply)
+    }
+
   private val command =
     DeclineCommand(
       name = "iceberg-doctor",
       header = "Inspect, diagnose and maintain Apache Iceberg tables."
-    )(ls orElse describe)
+    )(ls orElse describe orElse snapshots)
 
   def parse(args: List[String]): Either[Help, Invocation] =
     command.parse(args, sys.env)

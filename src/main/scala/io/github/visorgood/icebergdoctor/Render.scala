@@ -41,6 +41,16 @@ object Render:
 
   private def count(value: Long): String = f"$value%,d".replace(',', ' ')
 
+  private val dash = "\u2014"
+
+  /** A commit's change to a counter: `+3`, `+8 -8`, or nothing at all. */
+  private def delta(added: Option[Long], removed: Option[Long]): String =
+    val parts = List(
+      added.filter(_ > 0).map(value => s"+${count(value)}"),
+      removed.filter(_ > 0).map(value => s"-${count(value)}")
+    ).flatten
+    if parts.isEmpty then dash else parts.mkString(" ")
+
   /** Binary units, because that is what Iceberg's own size properties are counted in. */
   private def bytes(value: Long): String =
     val units = List("B", "KiB", "MiB", "GiB", "TiB", "PiB")
@@ -55,14 +65,38 @@ object Render:
   // -- instances -------------------------------------------------------------
 
   /** A whole listing at once, so columns can be aligned across its rows. */
-  given Render[List[CatalogEntry]] = new Render[List[CatalogEntry]]:
+  given catalogListing: Render[List[CatalogEntry]] = new Render[List[CatalogEntry]]:
     def lines(entries: List[CatalogEntry]): List[String] =
       columns(entries.map(entry => List(entry.name, entry.kind.toString.toLowerCase)))
 
-  given [A](using inner: Render[A]): Render[List[A]] = new Render[List[A]]:
+  /** Reads as a timeline: newest first, one row per commit, header included. */
+  given snapshotHistory: Render[List[SnapshotRow]] = new Render[List[SnapshotRow]]:
+    def lines(rows: List[SnapshotRow]): List[String] =
+      if rows.isEmpty then List("no snapshots — the table has never been written to")
+      else
+        val header =
+          List("SNAPSHOT ID", "PARENT", "COMMITTED", "OPERATION", "SEQ", "FILES", "RECORDS", "ENGINE", "REFS")
+        val body = rows.map { row =>
+          List(
+            row.id.toString,
+            row.parentId.fold(dash)(_.toString),
+            at(row.timestampMs),
+            row.operation,
+            row.sequenceNumber.toString,
+            delta(row.addedFiles, row.removedFiles),
+            delta(row.addedRecords, row.removedRecords),
+            row.engine.getOrElse(dash),
+            if row.refs.isEmpty then "" else row.refs.mkString(", ")
+          )
+        }
+        columns(header :: body)
+
+  // Anonymous givens are named after the type constructor, so two Render[List[?]]
+// instances would both be called given_Render_List. Name them.
+  given anyList[A](using inner: Render[A]): Render[List[A]] = new Render[List[A]]:
     def lines(values: List[A]): List[String] = values.flatMap(inner.lines)
 
-  given Render[TableLayout] = new Render[TableLayout]:
+  given tableLayout: Render[TableLayout] = new Render[TableLayout]:
     def lines(layout: TableLayout): List[String] =
       val storage = "STORAGE" :: indent(
         columns(
@@ -96,7 +130,7 @@ object Render:
           )
       sections(List(storage, snapshot))
 
-  given Render[TableDescription] = new Render[TableDescription]:
+  given tableDescription: Render[TableDescription] = new Render[TableDescription]:
     def lines(description: TableDescription): List[String] =
       sections(
         List(

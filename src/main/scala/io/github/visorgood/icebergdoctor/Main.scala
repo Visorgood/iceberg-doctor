@@ -49,6 +49,25 @@ final case class TableLayout(
     current: Option[CurrentSnapshot]
 )
 
+/** One snapshot in a table's history (R4), with what that commit changed.
+  *
+  * The counts here are per-commit deltas from the snapshot summary, not the running totals of
+  * [[CurrentSnapshot]] — a snapshot records both, and confusing them is easy.
+  */
+final case class SnapshotRow(
+    id: Long,
+    parentId: Option[Long],
+    sequenceNumber: Long,
+    timestampMs: Long,
+    operation: String,
+    addedFiles: Option[Long],
+    removedFiles: Option[Long],
+    addedRecords: Option[Long],
+    removedRecords: Option[Long],
+    engine: Option[String],
+    refs: List[String]
+)
+
 /** The logical shape of a table (R2).
   *
   * Iceberg's own `Schema`, `PartitionSpec` and `SortOrder` are carried as-is: we only read
@@ -150,6 +169,45 @@ object Main:
       properties = table.properties.asScala.toMap
     )
 
+  // --------------------------------------------------------- R4: snapshots
+
+  /** The whole history, newest first. Everything comes from `metadata.json`. */
+  private[icebergdoctor] def snapshots(
+      catalog: HadoopCatalog,
+      id: TableIdentifier
+  ): List[SnapshotRow] =
+    val table = catalog.loadTable(id)
+    // A snapshot does not know which refs point at it, so invert the table's ref map once.
+    val refsBySnapshot = table.refs.asScala.toList
+      .groupMap((_, ref) => ref.snapshotId)((name, _) => name)
+      .view
+      .mapValues(_.toList.sorted)
+      .toMap
+
+    table.snapshots.asScala.toList
+      .map { snapshot =>
+        val summary = snapshot.summary.asScala
+        def delta(key: String) = summary.get(key).flatMap(_.toLongOption)
+        SnapshotRow(
+          id = snapshot.snapshotId,
+          parentId = Option(snapshot.parentId).map(_.longValue),
+          sequenceNumber = snapshot.sequenceNumber,
+          timestampMs = snapshot.timestampMillis,
+          operation = snapshot.operation,
+          addedFiles = delta("added-data-files"),
+          removedFiles = delta("deleted-data-files"),
+          addedRecords = delta("added-records"),
+          removedRecords = delta("deleted-records"),
+          // Only engines stamp this; a commit made through the Java API leaves it unset.
+          engine = summary.get("engine-name").map { name =>
+            summary.get("engine-version").fold(name)(version => s"$name $version")
+          },
+          refs = refsBySnapshot.getOrElse(snapshot.snapshotId, Nil)
+        )
+      }
+      .sortBy(row => (row.timestampMs, row.sequenceNumber))
+      .reverse
+
   // -------------------------------------------------------------- dispatch
 
   private def parseNamespace(text: String): Namespace =
@@ -167,6 +225,14 @@ object Main:
     case Invocation.Describe(warehouse, table) =>
       Using.resource(openCatalog(warehouse)) { catalog =>
         describe(catalog, TableIdentifier.parse(table)).lines.foreach(println)
+      }
+
+    case Invocation.Snapshots(warehouse, table, limit) =>
+      Using.resource(openCatalog(warehouse)) { catalog =>
+        val rows  = snapshots(catalog, TableIdentifier.parse(table))
+        val shown = if limit <= 0 then rows else rows.take(limit)
+        shown.lines.foreach(println)
+        limitNote(rows.size, limit).foreach(println)
       }
 
   def main(args: Array[String]): Unit =
