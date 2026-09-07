@@ -38,7 +38,7 @@ command has to go, which is what determines whether it answers in milliseconds o
 |---|---|---|---|---|
 | **R1** | **Browse the catalog.** List namespaces (including nested ones), tables and views; filter by pattern. | all | catalog | v0.1 |
 | **R2** | **Describe logical shape.** Schema with field IDs, types, nullability, docs and identifier fields; current partition spec; sort order; table properties. | all | metadata | v0.1 |
-| **R3** | **Describe physical shape.** Format version, location, current snapshot, total data and delete file counts and bytes, manifest count, metadata file size, last updated. | DE, PE | metadata | v0.1 |
+| **R3** | **Describe physical shape.** Format version, location, uuid, last updated, snapshot and ref counts, and the current snapshot with the file, record and byte totals Iceberg keeps in its summary. Manifest count and metadata file size cost a level deeper and are not part of the metadata-only answer. | DE, PE | metadata | v0.1 |
 | **R4** | **Snapshot history.** Timeline of snapshots: operation, timestamp, parent, rows and files added or removed, writing engine, and which refs point at it. | DE, PE | metadata | v0.1 |
 | **R5** | **List refs.** Branches and tags with their target snapshot and retention settings. | DE | metadata | v0.1 |
 | **R6** | **File statistics.** File count, total size, size distribution (min / p50 / p95 / max), breakdown by format. Surfaces the small-file tail. | DE, PE | manifest lists | v0.1 |

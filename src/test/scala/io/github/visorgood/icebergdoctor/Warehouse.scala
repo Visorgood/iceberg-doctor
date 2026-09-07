@@ -1,7 +1,7 @@
 package io.github.visorgood.icebergdoctor
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
+import org.apache.iceberg.{DataFiles, FileFormat, PartitionSpec, Schema, SortOrder, Table}
 import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
 import org.apache.iceberg.hadoop.HadoopCatalog
 import org.apache.iceberg.types.Types
@@ -76,14 +76,37 @@ object Warehouse:
         for table <- tables do
           val id = TableIdentifier.of(ns, table)
           if id == configured then
-            catalog
+            val table = catalog
               .buildTable(id, schema)
               .withPartitionSpec(specOf(schema))
               .withSortOrder(sortOrderOf(schema))
               .withProperties(properties.asJava)
               .create()
+            appendFiles(table, day = "2026-09-06", count = 2)
+            appendFiles(table, day = "2026-09-07", count = 3)
           else catalog.createTable(id, schema)
     }
+
+  /** Commits metadata about data files that do not exist.
+    *
+    * Nothing reads those files: the counts and sizes `R3` reports come from the totals Iceberg
+    * keeps in each snapshot summary. This gives the fixture real snapshots without a Parquet
+    * writer, which would mean two more dependencies.
+    */
+  private def appendFiles(table: Table, day: String, count: Int): Unit =
+    val append = table.newAppend()
+    for i <- 0 until count do
+      append.appendFile(
+        DataFiles
+          .builder(table.spec)
+          .withPath(s"${table.location}/data/$day-$i.parquet")
+          .withPartitionPath(s"event_ts_day=$day/country=US")
+          .withFileSizeInBytes((i + 1) * 4L * 1024 * 1024)
+          .withRecordCount((i + 1) * 10_000L)
+          .withFormat(FileFormat.PARQUET)
+          .build()
+      )
+    append.commit()
 
   /** A populated warehouse in a fresh temp directory. The caller deletes it. */
   def createTemporary(): Path =

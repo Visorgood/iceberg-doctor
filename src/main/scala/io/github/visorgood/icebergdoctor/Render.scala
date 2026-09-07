@@ -2,6 +2,9 @@ package io.github.visorgood.icebergdoctor
 
 import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
 
+import java.time.{Instant, ZoneOffset}
+import java.time.format.DateTimeFormatter
+
 import scala.jdk.CollectionConverters.*
 
 /** How a value is presented as lines of text.
@@ -31,6 +34,20 @@ object Render:
 
   private def indent(lines: List[String]): List[String] = lines.map("  " + _)
 
+  private val timestamp =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss'Z'").withZone(ZoneOffset.UTC)
+
+  private def at(epochMs: Long): String = timestamp.format(Instant.ofEpochMilli(epochMs))
+
+  private def count(value: Long): String = f"$value%,d".replace(',', ' ')
+
+  /** Binary units, because that is what Iceberg's own size properties are counted in. */
+  private def bytes(value: Long): String =
+    val units = List("B", "KiB", "MiB", "GiB", "TiB", "PiB")
+    val scale = math.min(if value <= 0 then 0 else (math.log(value.toDouble) / math.log(1024)).toInt, units.size - 1)
+    if scale == 0 then s"$value B"
+    else f"${value / math.pow(1024, scale.toDouble)}%.1f ${units(scale)}"
+
   /** Joins non-empty groups with a blank line between them. */
   private def sections(groups: List[List[String]]): List[String] =
     groups.filter(_.nonEmpty).reduceLeftOption(_ ::: "" :: _).getOrElse(Nil)
@@ -45,6 +62,40 @@ object Render:
   given [A](using inner: Render[A]): Render[List[A]] = new Render[List[A]]:
     def lines(values: List[A]): List[String] = values.flatMap(inner.lines)
 
+  given Render[TableLayout] = new Render[TableLayout]:
+    def lines(layout: TableLayout): List[String] =
+      val storage = "STORAGE" :: indent(
+        columns(
+          List(
+            List("format version", layout.formatVersion.toString),
+            List("location", layout.location),
+            List("uuid", layout.uuid),
+            List("last updated", at(layout.lastUpdatedMs)),
+            List("snapshots", layout.snapshotCount.toString),
+            List("refs", if layout.refs.isEmpty then "none" else layout.refs.mkString(", "))
+          )
+        )
+      )
+      val snapshot = layout.current match
+        case None =>
+          List("SNAPSHOT  none — the table has never been written to")
+        case Some(current) =>
+          def row(label: String, value: Option[String]) = value.map(List(label, _)).toList
+          "SNAPSHOT" :: indent(
+            columns(
+              List(
+                // A snapshot id is too long to sit in a heading the way a schema id does.
+                List("current-snapshot-id", current.id.toString),
+                List("committed", at(current.timestampMs)),
+                List("operation", current.operation)
+              ) ::: row("data files", current.dataFiles.map(count))
+                ::: row("delete files", current.deleteFiles.map(count))
+                ::: row("records", current.records.map(count))
+                ::: row("total size", current.sizeInBytes.map(bytes))
+            )
+          )
+      sections(List(storage, snapshot))
+
   given Render[TableDescription] = new Render[TableDescription]:
     def lines(description: TableDescription): List[String] =
       sections(
@@ -53,7 +104,8 @@ object Render:
           schemaLines(description.schema),
           specLines(description.spec, description.schema),
           sortOrderLines(description.sortOrder, description.schema),
-          propertyLines(description.properties)
+          propertyLines(description.properties),
+          Render[TableLayout].lines(description.layout)
         )
       )
 
@@ -100,4 +152,4 @@ object Render:
     if properties.isEmpty then List("PROPERTIES  none set")
     else
       val rows = properties.toList.sorted.map((key, value) => List(key, value))
-      s"PROPERTIES  ${properties.size} set" :: indent(columns(rows))
+      "PROPERTIES" :: indent(columns(rows))
