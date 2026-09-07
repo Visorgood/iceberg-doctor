@@ -38,7 +38,7 @@ class DescribeSuite extends munit.FunSuite:
       properties = Map.empty
     )
     assertEquals(
-      bare.lines,
+      bare.lines.toList,
       List(
         "db.plain",
         "",
@@ -63,7 +63,7 @@ class DescribeSuite extends munit.FunSuite:
       SortOrder.unsorted,
       Map("write.target-file-size-bytes" -> "134217728", "gc.enabled" -> "true")
     )
-    val rendered = described.lines
+    val rendered = described.lines.toList
     assertEquals(
       rendered.dropWhile(_ != "PROPERTIES  2 set"),
       List(
@@ -82,7 +82,7 @@ class DescribeSuite extends munit.FunSuite:
       ),
       java.util.Set.of(Integer.valueOf(1))
     )
-    val rendered = TableDescription("db.t", keyed, PartitionSpec.unpartitioned, SortOrder.unsorted, Map.empty).lines
+    val rendered = TableDescription("db.t", keyed, PartitionSpec.unpartitioned, SortOrder.unsorted, Map.empty).lines.toList
     assert(rendered.contains("  identifier  id"), rendered.mkString("\n"))
   }
 
@@ -90,7 +90,7 @@ class DescribeSuite extends munit.FunSuite:
 
   warehouse.test("describe reads the spec, sort order and properties of a table") { fixture =>
     val described = Main.describe(fixture.catalog, Warehouse.configured)
-    val rendered  = described.lines
+    val rendered  = described.lines.toList
 
     assertEquals(described.name, "prod.events.clicks")
     assert(rendered.contains("  1000  event_ts_day  day(event_ts)"), rendered.mkString("\n"))
@@ -105,7 +105,7 @@ class DescribeSuite extends munit.FunSuite:
 
   warehouse.test("a table created without a spec or sort order describes as bare") { fixture =>
     val described = Main.describe(fixture.catalog, Warehouse.plain)
-    val rendered  = described.lines
+    val rendered  = described.lines.toList
     assert(rendered.contains("PARTITION SPEC  unpartitioned"), rendered.mkString("\n"))
     assert(rendered.contains("SORT ORDER  unsorted"), rendered.mkString("\n"))
   }

@@ -18,7 +18,7 @@ with a `=` below can also be reached with SQL.
 
 ```
 catalogs                          configured catalogs
-ls [<namespace>]                  namespaces, tables and views          R1
+ls [<namespace>]                  one level: namespaces, tables, views  R1
 
 describe   <table>                schema, spec, sort order, size        R2 R3
 properties <table>                table properties                      R2
@@ -56,24 +56,41 @@ An argument containing `/` is a metadata file path; otherwise it is a table iden
 | `--snapshot <id>` · `--ref <name>` · `--as-of <ts>` | what to read at; `main` by default |
 | `--depth metadata\|manifest-lists\|manifests\|data` | how deep to read |
 | `--format human\|json\|ndjson` | `human` by default |
-| `--limit <n>` · `--no-color` | |
+| `--limit <n>` · `-n` · `--no-color` | default 10; `0` for all |
 
 Every command prints the snapshot id it read, so a result can be reproduced.
+
+`--limit` trims the output, not the work: the rows are fetched and then cut, and a note says how
+many were left out. Bounding the work itself needs the catalog to paginate — the REST spec
+supports it, `HadoopCatalog` does not.
 
 ## Output
 
 ### `ls`
 
+One level at a time, like `ls` itself — no recursion. Names are printed in full so that any row
+can be pasted straight into another command, and so that a truncated listing stays unambiguous.
+
 ```
+$ iceberg-doctor ls prod
+prod.events   namespace
+prod.staging  namespace
+
 $ iceberg-doctor ls prod.events
+prod.events.archive          namespace
+prod.events.clicks           table
+prod.events.impressions      table
+prod.events.clicks_daily     view
 
-NAMESPACE   prod.events.archive
-
-TABLE       prod.events.clicks           v2   2026-09-06 08:14
-            prod.events.impressions      v3   2026-09-06 08:12
-
-VIEW        prod.events.clicks_daily
+$ iceberg-doctor ls prod.events -n 2
+prod.events.archive   namespace
+prod.events.clicks    table
+showing 2 of 4 — raise --limit to see the rest
 ```
+
+Namespaces sort above tables, then alphabetically. The order is ours, not the catalog's: a
+filesystem catalog returns directory order, which would change which rows `--limit` keeps
+between runs.
 
 ### `describe`
 

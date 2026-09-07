@@ -9,8 +9,17 @@ import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
 
-/** A namespace and everything found beneath it. */
-final case class NamespaceTree(name: String, tables: List[String], children: List[NamespaceTree])
+/** One row of `ls`: something that lives in a catalog, named in full.
+  *
+  * Iceberg has no noun for "a namespace or a table" — it lists them through separate calls — so
+  * this is ours. Full names mean every row can be pasted straight into another command.
+  */
+final case class CatalogEntry(name: String, kind: CatalogEntry.Kind)
+
+object CatalogEntry:
+  /** Declared namespace-first so sorting groups namespaces above tables. */
+  enum Kind:
+    case Namespace, Table
 
 /** The logical shape of a table (R2).
   *
@@ -37,19 +46,40 @@ object Main:
     catalog.initialize("local", Map("warehouse" -> warehouse).asJava)
     catalog
 
-  /** Iceberg lists one level at a time, so walking the tree is our job.
+  // ---------------------------------------------------------------- R1: ls
+
+  /** What sits directly inside `ns` — one level only, like `ls` itself.
     *
-    * Only namespaces returned by `listNamespaces` are ever asked for their tables, so the root
-    * namespace — which `HadoopCatalog.listTables` rejects — is never passed to it.
+    * Sorted because the catalog returns filesystem order, so which rows `--limit` keeps would
+    * otherwise vary between runs.
     */
-  private[icebergdoctor] def walk(catalog: HadoopCatalog, ns: Namespace): List[NamespaceTree] =
-    catalog.listNamespaces(ns).asScala.toList.map { child =>
-      NamespaceTree(
-        name = child.levels.last,
-        tables = catalog.listTables(child).asScala.map(_.name).toList,
-        children = walk(catalog, child)
-      )
-    }
+  private[icebergdoctor] def list(catalog: HadoopCatalog, ns: Namespace): List[CatalogEntry] =
+    val namespaces = catalog
+      .listNamespaces(ns)
+      .asScala
+      .toList
+      .map(child => CatalogEntry(child.toString, CatalogEntry.Kind.Namespace))
+
+    // HadoopCatalog rejects listTables on the root namespace — in its layout a table always
+    // lives inside a namespace directory, never at the warehouse root.
+    val tables =
+      if ns.isEmpty then Nil
+      else
+        catalog
+          .listTables(ns)
+          .asScala
+          .toList
+          .map(id => CatalogEntry(id.toString, CatalogEntry.Kind.Table))
+
+    (namespaces ::: tables).sortBy(entry => (entry.kind.ordinal, entry.name))
+
+  /** Says how much the limit cut off, when it cut anything. */
+  private[icebergdoctor] def limitNote(total: Int, limit: Int): Option[String] =
+    Option.when(limit > 0 && total > limit)(
+      s"showing $limit of $total — raise --limit to see the rest"
+    )
+
+  // ---------------------------------------------------------- R2: describe
 
   private[icebergdoctor] def describe(
       catalog: HadoopCatalog,
@@ -64,17 +94,24 @@ object Main:
       properties = table.properties.asScala.toMap
     )
 
+  // -------------------------------------------------------------- dispatch
+
+  private def parseNamespace(text: String): Namespace =
+    Namespace.of(text.split('.').filter(_.nonEmpty)*)
+
   private def run(invocation: Invocation): Unit = invocation match
-    case Invocation.Ls(warehouse) =>
-      Using
-        .resource(openCatalog(warehouse))(walk(_, Namespace.empty))
-        .lines
-        .foreach(println)
+    case Invocation.Ls(warehouse, namespace, limit) =>
+      Using.resource(openCatalog(warehouse)) { catalog =>
+        val entries = list(catalog, namespace.fold(Namespace.empty)(parseNamespace))
+        val shown   = if limit <= 0 then entries else entries.take(limit)
+        shown.lines.foreach(println)
+        limitNote(entries.size, limit).foreach(println)
+      }
+
     case Invocation.Describe(warehouse, table) =>
-      Using
-        .resource(openCatalog(warehouse))(describe(_, TableIdentifier.parse(table)))
-        .lines
-        .foreach(println)
+      Using.resource(openCatalog(warehouse)) { catalog =>
+        describe(catalog, TableIdentifier.parse(table)).lines.foreach(println)
+      }
 
   def main(args: Array[String]): Unit =
     Cli.parse(args.toList) match

@@ -4,7 +4,7 @@ package io.github.visorgood.icebergdoctor
 class CliSuite extends munit.FunSuite:
 
   test("ls takes a warehouse") {
-    assertEquals(Cli.parse(List("ls", "/tmp/wh")), Right(Invocation.Ls("/tmp/wh")))
+    assertEquals(Cli.parse(List("ls", "/tmp/wh")), Right(Invocation.Ls("/tmp/wh", None, Cli.DefaultLimit)))
   }
 
   test("describe takes a warehouse and a table") {
@@ -27,4 +27,11 @@ class CliSuite extends munit.FunSuite:
   test("--help is not an error, so it must not exit non-zero") {
     val help = Cli.parse(List("--help")).left.getOrElse(fail("expected help"))
     assert(help.errors.isEmpty, help.toString)
+  }
+
+  test("ls takes an optional namespace and a limit") {
+    assertEquals(
+      Cli.parse(List("ls", "/tmp/wh", "prod.events", "-n", "5")),
+      Right(Invocation.Ls("/tmp/wh", Some("prod.events"), 5))
+    )
   }

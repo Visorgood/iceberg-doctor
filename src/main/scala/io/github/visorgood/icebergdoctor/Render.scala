@@ -37,11 +37,10 @@ object Render:
 
   // -- instances -------------------------------------------------------------
 
-  given Render[NamespaceTree] = new Render[NamespaceTree]:
-    def lines(tree: NamespaceTree): List[String] =
-      s"${tree.name}/" ::
-        tree.tables.map("  " + _) :::
-        indent(tree.children.flatMap(lines))
+  /** A whole listing at once, so columns can be aligned across its rows. */
+  given Render[List[CatalogEntry]] = new Render[List[CatalogEntry]]:
+    def lines(entries: List[CatalogEntry]): List[String] =
+      columns(entries.map(entry => List(entry.name, entry.kind.toString.toLowerCase)))
 
   given [A](using inner: Render[A]): Render[List[A]] = new Render[List[A]]:
     def lines(values: List[A]): List[String] = values.flatMap(inner.lines)

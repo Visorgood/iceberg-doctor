@@ -5,17 +5,30 @@ import com.monovore.decline.{Command as DeclineCommand, Help, Opts}
 
 /** A parsed command line. Kept separate from running it so parsing can be tested on its own. */
 enum Invocation:
-  case Ls(warehouse: String)
+  case Ls(warehouse: String, namespace: Option[String], limit: Int)
   case Describe(warehouse: String, table: String)
 
 object Cli:
+
+  /** Entries `ls` shows before stopping. A catalog can hold thousands of tables. */
+  val DefaultLimit = 10
 
   private val warehouse =
     Opts.argument[String]("warehouse")
 
   private val ls =
-    Opts.subcommand("ls", "List namespaces, tables and views in a catalog.") {
-      warehouse.map(Invocation.Ls.apply)
+    Opts.subcommand("ls", "List what sits directly inside a namespace, one level only.") {
+      (
+        warehouse,
+        Opts.argument[String]("namespace").orNone,
+        Opts
+          .option[Int](
+            "limit",
+            s"How many entries to show (default $DefaultLimit; 0 means all).",
+            short = "n"
+          )
+          .withDefault(DefaultLimit)
+      ).mapN(Invocation.Ls.apply)
     }
 
   private val describe =

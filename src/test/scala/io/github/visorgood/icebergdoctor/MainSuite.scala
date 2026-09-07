@@ -1,12 +1,13 @@
 package io.github.visorgood.icebergdoctor
 
-import org.apache.iceberg.catalog.Namespace
+import io.github.visorgood.icebergdoctor.CatalogEntry.Kind
 import io.github.visorgood.icebergdoctor.Render.lines
+import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.hadoop.HadoopCatalog
 
 import java.nio.file.Path
 
-/** Tests `Main.walk` and the `Render` instance for `NamespaceTree` — R1. */
+/** Tests `Main.list`, `Main.limitNote` and the `Render` instance for a listing — R1. */
 class MainSuite extends munit.FunSuite:
 
   private case class Fixture(dir: Path, catalog: HadoopCatalog)
@@ -21,43 +22,77 @@ class MainSuite extends munit.FunSuite:
       Warehouse.deleteRecursively(fixture.dir)
   )
 
-  private def walkAll(fixture: Fixture): List[NamespaceTree] =
-    Main.walk(fixture.catalog, Namespace.empty)
+  // -- listing one level at a time -------------------------------------------
 
-  warehouse.test("walk finds every namespace the fixture created") { fixture =>
-    val found = walkAll(fixture).map(_.name).toSet
-    assertEquals(found, Set("prod", "staging"))
-  }
-
-  warehouse.test("walk descends into nested namespaces") { fixture =>
-    val prod = walkAll(fixture).find(_.name == "prod").get
-    assertEquals(prod.children.map(_.name), List("events"))
-  }
-
-  warehouse.test("walk attaches tables to the namespace that holds them") { fixture =>
-    val events = walkAll(fixture).find(_.name == "prod").get.children.head
-    assertEquals(events.tables.toSet, Set("clicks", "impressions"))
-    // prod itself holds no tables — only the nested namespace does.
-    assertEquals(walkAll(fixture).find(_.name == "prod").get.tables, Nil)
-  }
-
-  test("render indents tables under their namespace and children under their parent") {
-    val tree = List(
-      NamespaceTree("prod", Nil, List(NamespaceTree("events", List("clicks"), Nil))),
-      NamespaceTree("staging", List("raw"), Nil)
-    )
+  warehouse.test("the root lists top-level namespaces only") { fixture =>
     assertEquals(
-      tree.lines,
+      Main.list(fixture.catalog, Namespace.empty),
+      List(CatalogEntry("prod", Kind.Namespace), CatalogEntry("staging", Kind.Namespace))
+    )
+  }
+
+  warehouse.test("a namespace lists its own children, not its grandchildren") { fixture =>
+    assertEquals(
+      Main.list(fixture.catalog, Namespace.of("prod")),
+      List(CatalogEntry("prod.events", Kind.Namespace))
+    )
+  }
+
+  warehouse.test("tables are listed with their full name") { fixture =>
+    assertEquals(
+      Main.list(fixture.catalog, Namespace.of("prod", "events")),
       List(
-        "prod/",
-        "  events/",
-        "    clicks",
-        "staging/",
-        "  raw"
+        CatalogEntry("prod.events.clicks", Kind.Table),
+        CatalogEntry("prod.events.impressions", Kind.Table)
       )
     )
   }
 
-  test("render of nothing is nothing") {
-    assertEquals(List.empty[NamespaceTree].lines, Nil)
+  test("namespaces sort above tables, so the limit keeps the same rows each run") {
+    // The catalog returns filesystem order; the ordering below is ours.
+    val mixed = List(
+      CatalogEntry("a.t", Kind.Table),
+      CatalogEntry("a.z", Kind.Namespace),
+      CatalogEntry("a.b", Kind.Namespace)
+    ).sortBy(entry => (entry.kind.ordinal, entry.name))
+    assertEquals(mixed.map(_.name), List("a.b", "a.z", "a.t"))
+  }
+
+  // -- rendering and paging --------------------------------------------------
+
+  test("a listing renders as aligned name and kind") {
+    val entries = List(
+      CatalogEntry("prod.events", Kind.Namespace),
+      CatalogEntry("prod.events.clicks", Kind.Table)
+    )
+    assertEquals(
+      entries.lines,
+      List(
+        "prod.events         namespace",
+        "prod.events.clicks  table"
+      )
+    )
+  }
+
+  test("an empty listing renders as nothing") {
+    assertEquals(List.empty[CatalogEntry].lines, Nil)
+  }
+
+  test("no note when everything fits") {
+    assertEquals(Main.limitNote(total = 3, limit = 10), None)
+  }
+
+  test("the note says how much was cut off") {
+    assertEquals(
+      Main.limitNote(total = 312, limit = 10),
+      Some("showing 10 of 312 — raise --limit to see the rest")
+    )
+  }
+
+  test("no note when the total exactly fills the limit") {
+    assertEquals(Main.limitNote(total = 10, limit = 10), None)
+  }
+
+  test("limit 0 means all, so there is nothing to note") {
+    assertEquals(Main.limitNote(total = 312, limit = 0), None)
   }
