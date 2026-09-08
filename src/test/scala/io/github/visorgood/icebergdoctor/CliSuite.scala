@@ -42,3 +42,10 @@ class CliSuite extends munit.FunSuite:
       Right(Invocation.Snapshots("/tmp/wh", "prod.events.clicks", 3))
     )
   }
+
+  test("refs takes a warehouse, a table and a limit") {
+    assertEquals(
+      Cli.parse(List("refs", "/tmp/wh", "prod.events.clicks")),
+      Right(Invocation.Refs("/tmp/wh", "prod.events.clicks", Cli.DefaultLimit))
+    )
+  }

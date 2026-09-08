@@ -49,6 +49,12 @@ object Render:
 
   private val dash = "\u2014"
 
+  /** Milliseconds as the coarsest whole unit that divides them: `7d`, `12h`, `90s`. */
+  private def duration(ms: Long): String =
+    List("d" -> 86400000L, "h" -> 3600000L, "m" -> 60000L, "s" -> 1000L)
+      .collectFirst { case (unit, size) if ms >= size && ms % size == 0 => s"${ms / size}$unit" }
+      .getOrElse(s"${ms}ms")
+
   /** A commit's change to a counter: `+3`, `+8 -8`, or nothing at all. */
   private def delta(added: Option[Long], removed: Option[Long]): String =
     val parts = List(
@@ -74,6 +80,26 @@ object Render:
   given catalogListing: Render[List[CatalogEntry]] = new Render[List[CatalogEntry]]:
     def lines(entries: List[CatalogEntry]): List[String] =
       columns(entries.map(entry => List(entry.name, entry.kind.toString.toLowerCase)))
+
+  given refListing: Render[List[RefRow]] = new Render[List[RefRow]]:
+    def lines(rows: List[RefRow]): List[String] =
+      if rows.isEmpty then List("no refs")
+      else
+        val header =
+          List("NAME", "TYPE", "SNAPSHOT ID", "MIN SNAPSHOTS", "MAX SNAPSHOT AGE", "MAX REF AGE")
+        val body = rows.map { row =>
+          List(
+            row.name,
+            row.kind.toString.toLowerCase,
+            row.snapshotId.toString,
+            // Unset means the table's history.expire.* property applies instead; showing the
+            // resolved value here would hide which of the two a reader is looking at.
+            row.minSnapshotsToKeep.fold(dash)(_.toString),
+            row.maxSnapshotAgeMs.fold(dash)(duration),
+            row.maxRefAgeMs.fold(dash)(duration)
+          )
+        }
+        columns(header :: body)
 
   /** Reads as a timeline: newest first, one row per commit, header included. */
   given snapshotHistory: Render[List[SnapshotRow]] = new Render[List[SnapshotRow]]:

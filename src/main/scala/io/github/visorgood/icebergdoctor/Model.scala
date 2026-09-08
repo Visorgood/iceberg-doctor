@@ -33,6 +33,25 @@ final case class SnapshotRow(
     refs: List[String]
 )
 
+/** A branch or a tag (R5), with the retention it declares for itself.
+  *
+  * Every retention field is optional because a ref need not set one: when it does not, the
+  * table's own `history.expire.*` property applies instead.
+  */
+final case class RefRow(
+    name: String,
+    kind: RefRow.Kind,
+    snapshotId: Long,
+    minSnapshotsToKeep: Option[Int],
+    maxSnapshotAgeMs: Option[Long],
+    maxRefAgeMs: Option[Long]
+)
+
+object RefRow:
+  /** Branch-first so sorting groups branches above tags. */
+  enum Kind:
+    case Branch, Tag
+
 /** The snapshot a table currently points at, with the running totals Iceberg keeps in its
   * summary. The totals are optional because a summary is only as complete as its writer made it.
   */

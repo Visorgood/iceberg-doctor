@@ -39,6 +39,11 @@ object Main:
         printLimited(Iceberg.snapshots(catalog, TableIdentifier.parse(table)), limit)
       }
 
+    case Invocation.Refs(warehouse, table, limit) =>
+      Using.resource(Iceberg.hadoopCatalog(warehouse)) { catalog =>
+        printLimited(Iceberg.refs(catalog, TableIdentifier.parse(table)), limit)
+      }
+
   def main(args: Array[String]): Unit =
     Cli.parse(args.toList) match
       case Right(invocation) => run(invocation)

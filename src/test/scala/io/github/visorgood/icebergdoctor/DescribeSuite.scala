@@ -165,7 +165,7 @@ class DescribeSuite extends munit.FunSuite:
     val layout = Iceberg.describe(fixture.catalog, Warehouse.configured).layout
 
     assertEquals(layout.formatVersion, 2)
-    assertEquals(layout.refs, List("main"))
+    assertEquals(layout.refs, List(Warehouse.backfillBranch, "main", Warehouse.weeklyTag))
     // The fixture commits two appends, so there are two snapshots.
     assertEquals(layout.snapshotCount, 2)
 

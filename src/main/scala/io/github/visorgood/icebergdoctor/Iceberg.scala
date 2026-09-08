@@ -3,7 +3,7 @@ package io.github.visorgood.icebergdoctor
 import org.apache.hadoop.conf.Configuration
 import org.apache.iceberg.catalog.{Catalog, Namespace, SupportsNamespaces, TableIdentifier}
 import org.apache.iceberg.hadoop.HadoopCatalog
-import org.apache.iceberg.{HasTableOperations, Table}
+import org.apache.iceberg.{HasTableOperations, SnapshotRef, Table}
 
 import scala.jdk.CollectionConverters.*
 
@@ -86,6 +86,30 @@ object Iceberg:
       sortOrder = table.sortOrder,
       properties = table.properties.asScala.toMap
     )
+
+  // -------------------------------------------------------------- R5: refs
+
+  /** Branches and tags, `main` first, then the rest of the branches, then the tags. */
+  def refs(catalog: Catalog, id: TableIdentifier): List[RefRow] =
+    catalog
+      .loadTable(id)
+      .refs
+      .asScala
+      .toList
+      .map { (name, ref) =>
+        RefRow(
+          name = name,
+          kind = if ref.isBranch then RefRow.Kind.Branch else RefRow.Kind.Tag,
+          snapshotId = ref.snapshotId,
+          // A tag carries only maxRefAgeMs; the other two are branch-only and stay null there.
+          minSnapshotsToKeep = Option(ref.minSnapshotsToKeep).map(_.intValue),
+          maxSnapshotAgeMs = Option(ref.maxSnapshotAgeMs).map(_.longValue),
+          maxRefAgeMs = Option(ref.maxRefAgeMs).map(_.longValue)
+        )
+      }
+      // MAIN_BRANCH is Iceberg's own name for the default ref, so putting it first is not a
+      // preference of ours — it is the one every other ref is measured against.
+      .sortBy(row => (row.kind.ordinal, if row.name == SnapshotRef.MAIN_BRANCH then 0 else 1, row.name))
 
   // --------------------------------------------------------- R4: snapshots
 

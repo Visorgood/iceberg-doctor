@@ -83,7 +83,9 @@ object Warehouse:
               .withProperties(properties.asJava)
               .create()
             appendFiles(table, day = "2026-09-06", count = 2)
+            val firstSnapshot = table.currentSnapshot.snapshotId
             appendFiles(table, day = "2026-09-07", count = 3)
+            addRefs(table, firstSnapshot)
           else catalog.createTable(id, schema)
     }
 
@@ -107,6 +109,24 @@ object Warehouse:
           .build()
       )
     append.commit()
+
+  /** A branch and a tag with retention of their own, so `refs` has something to show.
+    *
+    * `main` deliberately keeps no settings: an unset ref falls back to the table property, and
+    * both cases need to render.
+    */
+  private def addRefs(table: Table, snapshotId: Long): Unit =
+    table
+      .manageSnapshots()
+      .createBranch(backfillBranch, snapshotId)
+      .setMinSnapshotsToKeep(backfillBranch, 5)
+      .setMaxSnapshotAgeMs(backfillBranch, 30L * 24 * 60 * 60 * 1000)
+      .createTag(weeklyTag, snapshotId)
+      .setMaxRefAgeMs(weeklyTag, 365L * 24 * 60 * 60 * 1000)
+      .commit()
+
+  val backfillBranch = "backfill"
+  val weeklyTag      = "weekly-2026-09-06"
 
   /** A populated warehouse in a fresh temp directory. The caller deletes it. */
   def createTemporary(): Path =

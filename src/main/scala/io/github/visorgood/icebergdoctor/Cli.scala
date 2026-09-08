@@ -8,6 +8,7 @@ enum Invocation:
   case Ls(warehouse: String, namespace: Option[String], limit: Int)
   case Describe(warehouse: String, table: String)
   case Snapshots(warehouse: String, table: String, limit: Int)
+  case Refs(warehouse: String, table: String, limit: Int)
 
 object Cli:
 
@@ -48,11 +49,22 @@ object Cli:
       ).mapN(Invocation.Snapshots.apply)
     }
 
+  private val refs =
+    Opts.subcommand("refs", "Show a table's branches and tags with their retention.") {
+      (
+        warehouse,
+        Opts.argument[String]("table"),
+        Opts
+          .option[Int]("limit", s"How many refs to show (default $DefaultLimit; 0 means all).", short = "n")
+          .withDefault(DefaultLimit)
+      ).mapN(Invocation.Refs.apply)
+    }
+
   private val command =
     DeclineCommand(
       name = "iceberg-doctor",
       header = "Inspect, diagnose and maintain Apache Iceberg tables."
-    )(ls orElse describe orElse snapshots)
+    )(ls orElse describe orElse snapshots orElse refs)
 
   def parse(args: List[String]): Either[Help, Invocation] =
     command.parse(args, sys.env)

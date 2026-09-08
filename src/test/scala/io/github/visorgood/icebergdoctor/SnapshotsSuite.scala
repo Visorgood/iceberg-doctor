@@ -91,10 +91,11 @@ class SnapshotsSuite extends munit.FunSuite:
     assertEquals(newest.operation, "append")
   }
 
-  warehouse.test("only the snapshot a ref points at carries that ref") { fixture =>
+  warehouse.test("each ref lands on the snapshot it points at, not on the newest") { fixture =>
     val List(newest, oldest) = Iceberg.snapshots(fixture.catalog, Warehouse.configured): @unchecked
+    // main followed the second commit; the branch and the tag were pinned to the first.
     assertEquals(newest.refs, List("main"))
-    assertEquals(oldest.refs, Nil)
+    assertEquals(oldest.refs, List(Warehouse.backfillBranch, Warehouse.weeklyTag))
   }
 
   warehouse.test("a table that was never written to has no snapshots") { fixture =>
