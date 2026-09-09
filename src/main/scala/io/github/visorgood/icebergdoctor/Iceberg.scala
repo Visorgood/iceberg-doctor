@@ -5,6 +5,7 @@ import org.apache.iceberg.catalog.{Catalog, Namespace, SupportsNamespaces, Table
 import org.apache.iceberg.hadoop.HadoopCatalog
 import org.apache.iceberg.{HasTableOperations, SnapshotRef, Table}
 
+import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
 /** The boundary with the Iceberg Java API.
@@ -16,6 +17,10 @@ import scala.jdk.CollectionConverters.*
 object Iceberg:
 
   def hadoopCatalog(warehouse: String): HadoopCatalog =
+    // Checked here rather than left to surface from a listing: Iceberg reports a missing
+    // directory as "Namespace does not exist: " with an empty name, which names nothing.
+    if !warehouse.contains("://") && !Files.isDirectory(Path.of(warehouse)) then
+      throw WarehouseMissing(warehouse)
     val catalog = new HadoopCatalog()
     catalog.setConf(new Configuration())
     catalog.initialize("local", Map("warehouse" -> warehouse).asJava)
@@ -53,7 +58,10 @@ object Iceberg:
   private def layoutOf(table: Table): TableLayout =
     // formatVersion, uuid and lastUpdatedMillis live on TableMetadata, which `Table` itself does
     // not expose; every catalog-loaded table implements HasTableOperations to reach it.
-    val metadata = table.asInstanceOf[HasTableOperations].operations.current
+    val metadata = table match
+      case withOperations: HasTableOperations => withOperations.operations.current
+      case other =>
+        throw IllegalStateException(s"${other.getClass.getName} does not expose TableMetadata")
     TableLayout(
       formatVersion = metadata.formatVersion,
       location = table.location,

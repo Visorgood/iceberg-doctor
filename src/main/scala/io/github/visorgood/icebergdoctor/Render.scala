@@ -9,10 +9,14 @@ import scala.jdk.CollectionConverters.*
 
 /** How a value is presented as lines of text.
   *
+  * Contravariant in `A` because `A` only ever appears in parameter position: a renderer that
+  * handles any `Failure` handles a `Failure.TableNotFound` too, and the enum's cases have their
+  * own types, so without this every call site would need an ascription.
+  *
   * Kept separate from the domain values so that a second output format — `--json` — becomes
   * another interpreter of the same value, not a second set of functions.
   */
-trait Render[A]:
+trait Render[-A]:
   def lines(value: A): List[String]
 
 object Render:
@@ -80,6 +84,34 @@ object Render:
   given catalogListing: Render[List[CatalogEntry]] = new Render[List[CatalogEntry]]:
     def lines(entries: List[CatalogEntry]): List[String] =
       columns(entries.map(entry => List(entry.name, entry.kind.toString.toLowerCase)))
+
+  /** Two lines at most: what went wrong, then what to do about it. */
+  given failure: Render[Failure] = new Render[Failure]:
+    def lines(value: Failure): List[String] = value match
+      case Failure.TableNotFound(table, warehouse) =>
+        List(
+          problem(s"table not found: $table"),
+          advice(s"list what is there: ${lsCommand(warehouse, Failure.parentOf(table))}")
+        )
+      case Failure.NamespaceNotFound(namespace, warehouse) =>
+        List(
+          problem(s"namespace not found: $namespace"),
+          advice(s"list what is there: ${lsCommand(warehouse, Failure.parentOf(namespace))}")
+        )
+      case Failure.WarehouseNotFound(path) =>
+        List(problem(s"not a warehouse: $path"), advice("no such directory"))
+      case Failure.StorageUnreadable(detail) =>
+        List(problem("cannot read from storage"), advice(detail))
+      case Failure.Unexpected(kind, detail) =>
+        // No verdict on whose fault it is: a permission or network problem lands here too.
+        List(problem(s"unexpected $kind"), advice(detail))
+
+  private def problem(text: String): String = s"error: $text"
+  private def advice(text: String): String  = s"       $text"
+
+  private def lsCommand(warehouse: String, namespace: String): String =
+    if namespace.isEmpty then s"${Cli.ProgramName} ls $warehouse"
+    else s"${Cli.ProgramName} ls $warehouse $namespace"
 
   given refListing: Render[List[RefRow]] = new Render[List[RefRow]]:
     def lines(rows: List[RefRow]): List[String] =

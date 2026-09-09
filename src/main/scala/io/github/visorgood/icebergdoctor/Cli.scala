@@ -10,7 +10,23 @@ enum Invocation:
   case Snapshots(warehouse: String, table: String, limit: Int)
   case Refs(warehouse: String, table: String, limit: Int)
 
+  /** Abstract here, implemented by every case's `warehouse` parameter. */
+  def warehouse: String
+
+  /** What the command was pointed at: a namespace for `ls`, a table for the rest.
+    *
+    * An error message needs this, and the ADT is the only place that knows which field holds it.
+    */
+  def subject: String = this match
+    case Ls(_, namespace, _)    => namespace.getOrElse("")
+    case Describe(_, table)     => table
+    case Snapshots(_, table, _) => table
+    case Refs(_, table, _)      => table
+
 object Cli:
+
+  /** The binary's name. Used for the usage text and for the commands suggested in errors. */
+  val ProgramName = "iceberg-doctor"
 
   /** Entries `ls` shows before stopping. A catalog can hold thousands of tables. */
   val DefaultLimit = 10
@@ -62,7 +78,7 @@ object Cli:
 
   private val command =
     DeclineCommand(
-      name = "iceberg-doctor",
+      name = ProgramName,
       header = "Inspect, diagnose and maintain Apache Iceberg tables."
     )(ls orElse describe orElse snapshots orElse refs)
 
