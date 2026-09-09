@@ -7,7 +7,7 @@ import org.apache.iceberg.{PartitionSpec, Schema, SortOrder}
 
 import java.nio.file.Path
 
-/** Tests `Main.describe` and the `Render` instances behind it — R2 and R3. */
+/** Tests `Iceberg.describe` and the `Render` instances behind it — R2 and R3. */
 class DescribeSuite extends munit.FunSuite:
 
   private case class Fixture(dir: Path, catalog: HadoopCatalog)

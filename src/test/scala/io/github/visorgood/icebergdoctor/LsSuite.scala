@@ -7,8 +7,8 @@ import org.apache.iceberg.hadoop.HadoopCatalog
 
 import java.nio.file.Path
 
-/** Tests `Main.list`, `Main.limitNote` and the `Render` instance for a listing — R1. */
-class MainSuite extends munit.FunSuite:
+/** Tests `Iceberg.list`, `Render.limitNote` and the `Render` instance for a listing — R1. */
+class LsSuite extends munit.FunSuite:
 
   private case class Fixture(dir: Path, catalog: HadoopCatalog)
 
@@ -95,4 +95,20 @@ class MainSuite extends munit.FunSuite:
 
   test("limit 0 means all, so there is nothing to note") {
     assertEquals(Render.limitNote(total = 312, limit = 0), None)
+  }
+
+  test("a row shorter than the others is padded rather than crashing the aligner") {
+    // `transpose` throws on ragged input, so a command with an optional trailing column would
+    // otherwise crash instead of leaving the cell blank.
+    assertEquals(
+      Render.columns(List(List("a", "long-value"), List("bb"))),
+      List("a   long-value", "bb")
+    )
+  }
+
+  test("alignment uses the widest cell in each column") {
+    assertEquals(
+      Render.columns(List(List("a", "1"), List("bbb", "22"))),
+      List("a    1", "bbb  22")
+    )
   }

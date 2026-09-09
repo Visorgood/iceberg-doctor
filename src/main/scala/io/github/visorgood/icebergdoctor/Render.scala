@@ -33,12 +33,17 @@ object Render:
 
   // -- shared layout helpers -------------------------------------------------
 
-  /** Pads cells so columns line up, then trims the trailing padding of the last one. */
-  private def columns(rows: List[List[String]]): List[String] =
+  /** Pads cells so columns line up, then trims the trailing padding of the last one.
+    *
+    * Short rows are filled out with empty cells first: `transpose` requires every row to be the
+    * same length and throws otherwise, which would turn a missing optional column into a crash.
+    */
+  private[icebergdoctor] def columns(rows: List[List[String]]): List[String] =
     if rows.isEmpty then Nil
     else
-      val widths = rows.transpose.map(_.map(_.length).max)
-      rows.map { row =>
+      val filled = rows.map(_.padTo(rows.map(_.length).max, ""))
+      val widths = filled.transpose.map(_.map(_.length).max)
+      filled.map { row =>
         row.zip(widths).map((cell, width) => cell.padTo(width, ' ')).mkString("  ").stripTrailing
       }
 

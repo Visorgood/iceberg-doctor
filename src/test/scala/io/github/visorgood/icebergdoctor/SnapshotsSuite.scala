@@ -5,7 +5,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog
 
 import java.nio.file.Path
 
-/** Tests `Main.snapshots` and its `Render` instance — R4. */
+/** Tests `Iceberg.snapshots` and its `Render` instance — R4. */
 class SnapshotsSuite extends munit.FunSuite:
 
   private case class Fixture(dir: Path, catalog: HadoopCatalog)
