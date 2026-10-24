@@ -1,7 +1,7 @@
 ThisBuild / scalaVersion := "3.10.0"
 ThisBuild / organization := "io.github.visorgood"
 
-val icebergVersion = "1.11.0"
+val icebergVersion = "1.12.0"
 val hadoopVersion  = "3.5.0"
 
 lazy val root = (project in file("."))
@@ -19,7 +19,7 @@ lazy val root = (project in file("."))
       "com.monovore"       %% "decline"               % "2.6.2",
       // Silences SLF4J's "no providers were found" banner on every run.
       // Swap for a real backend once the tool has something worth logging.
-      "org.slf4j"          %  "slf4j-nop"             % "2.0.17" % Runtime,
+      "org.slf4j"          %  "slf4j-nop"             % "2.0.20" % Runtime,
       "org.scalameta"      %% "munit"                 % "1.3.6"  % Test
     ),
     scalacOptions ++= Seq(
