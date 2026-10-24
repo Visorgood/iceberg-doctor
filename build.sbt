@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / scalaVersion := "3.10.0"
 ThisBuild / organization := "io.github.visorgood"
 
 val icebergVersion = "1.11.0"

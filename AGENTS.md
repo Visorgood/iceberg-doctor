@@ -18,9 +18,14 @@ check before referring to one.
 
 | | Version | Pinned in |
 |---|---|---|
-| Scala | 3.9.0 | `build.sbt` |
-| sbt | 2.0.8 | `project/build.properties` |
+| Scala | 3.10.0 | `build.sbt` |
+| sbt | 2.0.11 | `project/build.properties` |
 | JDK | 21 | `.java-version` (jenv) |
+
+**Scala is on the `Next` line, not LTS, and that is deliberate.** The LTS line is 3.3 (nine
+patches and still receiving them); `Next` minors move forward instead. Do not "fix" this by
+dropping to 3.3.x. Do keep up with `Next`: 3.9 was abandoned after 3.9.0 with no patch at all,
+so standing still on a `Next` minor means standing on an unmaintained one.
 
 - Organisation / groupId: `io.github.visorgood`
 - Root package: `io.github.visorgood.icebergdoctor`
@@ -33,11 +38,12 @@ development machine and must not be selected.
 ## Commands
 
 ```bash
-sbt compile      # compile
-sbt test         # run AFFECTED tests only — sbt 2 delegates this to testQuick
-sbt "testOnly *" # run every test
-sbt run          # run the application
-sbt console      # REPL with the project on the classpath
+sbt compile            # compile
+sbt test               # run AFFECTED tests only — sbt 2 delegates this to testQuick
+sbt "testOnly *"       # run every test
+sbt run                # run the application
+sbt console            # REPL with the project on the classpath
+sbt dependencyUpdates  # dependency versions vs the repositories — plugins are NOT covered
 ```
 
 ## Design documents
@@ -154,9 +160,18 @@ Things that have already cost time, or will.
   library is compiled with Scala 3 and published as `org.scala-lang:scala-library:3.x`, not
   `2.13.x`. Advice about a `scala-library:2.13.x` on the classpath predates this and does not
   apply.
-- **Two sbt plugins have no sbt 2 release yet.** `sbt-tpolecat` — write `scalacOptions` by hand
-  instead. `sbt-native-image` — use `GraalVMNativeImage` from `sbt-native-packager`, which is
-  released for sbt 2.
+- **`sbt-tpolecat` and `sbt-native-image` do have sbt 2 releases** (0.5.7 and 0.5.0, checked
+  2026-10-24). Neither is adopted: `scalacOptions` are still written by hand and nothing builds
+  a native image yet. This entry previously claimed they were unavailable — verify before
+  repeating a "no sbt 2 release" claim about any plugin.
+- **`reload plugins` poisons the sbt server, and does not audit plugins anyway.** `sbt-updates`
+  reports library dependencies only; the sbt 1 recipe `reload plugins; dependencyUpdates` fails
+  under sbt 2 — the key is undefined there even with the plugin added to
+  `project/project/plugins.sbt`. Worse, each `reload plugins` descends one more meta level and
+  the running server keeps that state, so later commands silently target
+  `iceberg-doctor-build-build-build` — no sources, default Scala version. Symptoms: `testOnly *`
+  says "No tests match", `about` names the wrong project. Fix: kill the sbt server process and
+  `rm -rf project/project`. Plugin versions must be checked by hand against Maven Central.
 - **`Partition` is not an entity in the Iceberg spec.** Partitions are derived by grouping live
   files by partition tuple under a given spec. A table with evolved specs has files under several
   specs at once, so any table-wide aggregate must be spec-aware.
