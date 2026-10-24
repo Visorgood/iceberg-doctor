@@ -26,9 +26,9 @@ object Warehouse:
     * HadoopCatalog treats them as directories and the difference has bitten us before.
     */
   val layout: List[(List[String], List[String])] = List(
-    List("prod")           -> Nil,
+    List("prod") -> Nil,
     List("prod", "events") -> List("clicks", "impressions"),
-    List("staging")        -> List("raw")
+    List("staging") -> List("raw")
   )
 
   /** The one table that carries a partition spec, a sort order and properties.
@@ -57,7 +57,7 @@ object Warehouse:
 
   /** Real Iceberg property names, so the values mean something to `diagnose` later. */
   val properties: Map[String, String] = Map(
-    "write.target-file-size-bytes"       -> "134217728",
+    "write.target-file-size-bytes" -> "134217728",
     "history.expire.max-snapshot-age-ms" -> "604800000"
   )
 
@@ -126,7 +126,7 @@ object Warehouse:
       .commit()
 
   val backfillBranch = "backfill"
-  val weeklyTag      = "weekly-2026-09-06"
+  val weeklyTag = "weekly-2026-09-06"
 
   /** A populated warehouse in a fresh temp directory. The caller deletes it. */
   def createTemporary(): Path =

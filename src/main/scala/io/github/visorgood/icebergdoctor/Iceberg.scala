@@ -19,8 +19,7 @@ object Iceberg:
   def hadoopCatalog(warehouse: String): HadoopCatalog =
     // Checked here rather than left to surface from a listing: Iceberg reports a missing
     // directory as "Namespace does not exist: " with an empty name, which names nothing.
-    if !warehouse.contains("://") && !Files.isDirectory(Path.of(warehouse)) then
-      throw WarehouseMissing(warehouse)
+    if !warehouse.contains("://") && !Files.isDirectory(Path.of(warehouse)) then throw WarehouseMissing(warehouse)
     val catalog = new HadoopCatalog()
     catalog.setConf(new Configuration())
     catalog.initialize("local", Map("warehouse" -> warehouse).asJava)

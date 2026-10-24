@@ -1,10 +1,6 @@
 package io.github.visorgood.icebergdoctor
 
-import org.apache.iceberg.exceptions.{
-  NoSuchNamespaceException,
-  NoSuchTableException,
-  NotFoundException
-}
+import org.apache.iceberg.exceptions.{NoSuchNamespaceException, NoSuchTableException, NotFoundException}
 
 import java.io.{IOException, UncheckedIOException}
 import scala.util.control.NoStackTrace
@@ -43,12 +39,12 @@ object Failure:
       .getOrElse(Unexpected(error.getClass.getSimpleName, describe(error)))
 
   private def recognised(invocation: Invocation): PartialFunction[Throwable, Failure] =
-    case missing: WarehouseMissing    => WarehouseNotFound(missing.path)
-    case _: NoSuchTableException      => TableNotFound(invocation.subject, invocation.warehouse)
-    case _: NoSuchNamespaceException  => NamespaceNotFound(invocation.subject, invocation.warehouse)
-    case failed: NotFoundException    => StorageUnreadable(describe(failed))
+    case missing: WarehouseMissing => WarehouseNotFound(missing.path)
+    case _: NoSuchTableException => TableNotFound(invocation.subject, invocation.warehouse)
+    case _: NoSuchNamespaceException => NamespaceNotFound(invocation.subject, invocation.warehouse)
+    case failed: NotFoundException => StorageUnreadable(describe(failed))
     case failed: UncheckedIOException => StorageUnreadable(describe(failed))
-    case failed: IOException          => StorageUnreadable(describe(failed))
+    case failed: IOException => StorageUnreadable(describe(failed))
 
   /** An exception and everything it wraps, outermost first.
     *

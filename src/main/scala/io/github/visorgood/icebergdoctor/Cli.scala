@@ -18,10 +18,10 @@ enum Invocation:
     * An error message needs this, and the ADT is the only place that knows which field holds it.
     */
   def subject: String = this match
-    case Ls(_, namespace, _)    => namespace.getOrElse("")
-    case Describe(_, table)     => table
+    case Ls(_, namespace, _) => namespace.getOrElse("")
+    case Describe(_, table) => table
     case Snapshots(_, table, _) => table
-    case Refs(_, table, _)      => table
+    case Refs(_, table, _) => table
 
 object Cli:
 

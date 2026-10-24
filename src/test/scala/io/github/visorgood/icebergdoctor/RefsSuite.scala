@@ -60,9 +60,9 @@ class RefsSuite extends munit.FunSuite:
   }
 
   warehouse.test("a branch carries snapshot retention, a tag only its own age") { fixture =>
-    val rows     = Iceberg.refs(fixture.catalog, Warehouse.configured)
+    val rows = Iceberg.refs(fixture.catalog, Warehouse.configured)
     val backfill = rows.find(_.name == Warehouse.backfillBranch).getOrElse(fail("no backfill"))
-    val weekly   = rows.find(_.name == Warehouse.weeklyTag).getOrElse(fail("no tag"))
+    val weekly = rows.find(_.name == Warehouse.weeklyTag).getOrElse(fail("no tag"))
 
     assertEquals(backfill.minSnapshotsToKeep, Some(5))
     assertEquals(backfill.maxSnapshotAgeMs, Some(30L * 24 * 60 * 60 * 1000))
@@ -84,7 +84,7 @@ class RefsSuite extends munit.FunSuite:
   warehouse.test("branches and tags can point at different snapshots") { fixture =>
     val rows = Iceberg.refs(fixture.catalog, Warehouse.configured)
     val main = rows.head
-    val tag  = rows.find(_.name == Warehouse.weeklyTag).getOrElse(fail("no tag"))
+    val tag = rows.find(_.name == Warehouse.weeklyTag).getOrElse(fail("no tag"))
     // The fixture tags the first commit while main has moved on to the second.
     assertNotEquals(main.snapshotId, tag.snapshotId)
   }

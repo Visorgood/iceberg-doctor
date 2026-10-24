@@ -1,11 +1,7 @@
 package io.github.visorgood.icebergdoctor
 
 import io.github.visorgood.icebergdoctor.Render.lines
-import org.apache.iceberg.exceptions.{
-  NoSuchNamespaceException,
-  NoSuchTableException,
-  NotFoundException
-}
+import org.apache.iceberg.exceptions.{NoSuchNamespaceException, NoSuchTableException, NotFoundException}
 
 import java.io.IOException
 
@@ -13,7 +9,7 @@ import java.io.IOException
 class FailureSuite extends munit.FunSuite:
 
   private val describing = Invocation.Describe("/wh", "prod.events.clicks")
-  private val listing    = Invocation.Ls("/wh", Some("prod.events"), 10)
+  private val listing = Invocation.Ls("/wh", Some("prod.events"), 10)
 
   // -- what the invocation knows about itself --------------------------------
 
@@ -58,7 +54,7 @@ class FailureSuite extends munit.FunSuite:
 
   test("storage problems are grouped, whichever exception carried them") {
     val fromIceberg = Failure.from(new NotFoundException("gone"), describing)
-    val fromJava    = Failure.from(new IOException("disk on fire"), describing)
+    val fromJava = Failure.from(new IOException("disk on fire"), describing)
     assertEquals(fromIceberg, Failure.StorageUnreadable("gone"))
     assertEquals(fromJava, Failure.StorageUnreadable("disk on fire"))
   }

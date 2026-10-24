@@ -119,9 +119,8 @@ class DescribeSuite extends munit.FunSuite:
   }
 
   test("properties are sorted by key and aligned") {
-    val rendered = description(properties =
-      Map("write.target-file-size-bytes" -> "134217728", "gc.enabled" -> "true")
-    ).lines
+    val rendered =
+      description(properties = Map("write.target-file-size-bytes" -> "134217728", "gc.enabled" -> "true")).lines
     assertEquals(
       rendered.dropWhile(_ != "PROPERTIES").takeWhile(_.nonEmpty),
       List(
@@ -148,7 +147,7 @@ class DescribeSuite extends munit.FunSuite:
 
   warehouse.test("describe reads the spec, sort order and properties of a table") { fixture =>
     val described = Iceberg.describe(fixture.catalog, Warehouse.configured)
-    val rendered  = described.lines
+    val rendered = described.lines
 
     assertEquals(described.name, "prod.events.clicks")
     assert(rendered.contains("  1000  event_ts_day  day(event_ts)"), rendered.mkString("\n"))
@@ -171,7 +170,7 @@ class DescribeSuite extends munit.FunSuite:
 
     val current = layout.current.getOrElse(fail("expected a current snapshot"))
     assertEquals(current.operation, "append")
-    assertEquals(current.dataFiles, Some(5L))   // 2 + 3 across the two commits
+    assertEquals(current.dataFiles, Some(5L)) // 2 + 3 across the two commits
     assertEquals(current.deleteFiles, Some(0L))
     assertEquals(current.records, Some(90000L)) // (10k+20k) + (10k+20k+30k)
     assertEquals(current.sizeInBytes, Some((4L + 8 + 4 + 8 + 12) * 1024 * 1024))

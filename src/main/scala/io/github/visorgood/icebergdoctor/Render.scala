@@ -112,7 +112,7 @@ object Render:
         List(problem(s"unexpected $kind"), advice(detail))
 
   private def problem(text: String): String = s"error: $text"
-  private def advice(text: String): String  = s"       $text"
+  private def advice(text: String): String = s"       $text"
 
   private def lsCommand(warehouse: String, namespace: String): String =
     if namespace.isEmpty then s"${Cli.ProgramName} ls $warehouse"
@@ -245,7 +245,7 @@ object Render:
     else
       val fields = order.fields.asScala.toList.map { field =>
         val source = schema.findColumnName(field.sourceId)
-        val term   = if field.transform.isIdentity then source else s"${field.transform}($source)"
+        val term = if field.transform.isIdentity then source else s"${field.transform}($source)"
         // NullOrder renders as "NULLS FIRST" / "NULLS LAST" — Iceberg's own spelling, kept.
         List(term, field.direction.toString.toLowerCase, field.nullOrder.toString.toLowerCase)
       }
