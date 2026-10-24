@@ -26,6 +26,9 @@ lazy val root = (project in file("."))
       "-deprecation",
       "-feature",
       "-unchecked",
-      "-Wunused:all"
+      // One flag for every -W setting the compiler has: unused, value-discard, safe-init,
+      // nonunit-statement, shadow and the rest. Replaces a hand-kept list, and makes a new
+      // compiler version contribute its new warnings without an edit here.
+      "-Wall"
     )
   )

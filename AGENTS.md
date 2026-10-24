@@ -10,9 +10,17 @@ not invented ahead of time.
 
 `iceberg-doctor` is a CLI for inspecting, diagnosing and maintaining Apache Iceberg tables.
 
-**Current status: design phase.** The repository contains an sbt scaffold and documentation.
-No application code exists yet. Do not assume any package, module or abstraction is in place –
-check before referring to one.
+**Current status: a working read path.** Four commands are implemented — `ls` (`R1`/`R2`),
+`describe` (`R3`), `snapshots` (`R4`) and `refs` (`R5`) — over `HadoopCatalog`, with 60 tests.
+Source lives in six files under `src/main/scala/io/github/visorgood/icebergdoctor/`:
+`Iceberg.scala` is the only place that calls the Iceberg Java API, `Model.scala` holds the
+domain types, `Cli.scala` parses, `Render.scala` prints, `Failure.scala` translates exceptions,
+`Main.scala` glues them. Everything else in `README.md` is still unbuilt — check before
+referring to a module.
+
+**The tool cannot yet open a real production table.** `HadoopCatalog` needs `version-hint.text`,
+which tables managed by REST or Glue do not have. `R13` (reading a `metadata.json` by path) is
+what unblocks that.
 
 ## Toolchain
 
@@ -44,6 +52,8 @@ sbt "testOnly *"       # run every test
 sbt run                # run the application
 sbt console            # REPL with the project on the classpath
 sbt dependencyUpdates  # dependency versions vs the repositories — plugins are NOT covered
+sbt scalafmtAll        # format every source under src/ (build.sbt is excluded on purpose)
+sbt scalafmtCheckAll   # fail instead of rewriting — for CI
 ```
 
 ## Design documents
@@ -134,7 +144,12 @@ Not yet established. To be filled in as decisions are made:
 
 - Test framework – **`munit` 1.3.6**, plain `FunSuite` and `FunFixture`. Move to
   `munit-cats-effect` if and when Cats Effect returns.
-- Code style / formatting – `.scalafmt.conf` not yet added
+- Code style / formatting – **`scalafmt`**, configured in `.scalafmt.conf`: `maxColumn = 120`,
+  `align.preset = none`, scaladoc never re-wrapped, and `.sbt` files excluded so `build.sbt`
+  keeps its hand-aligned dependency columns. Run `sbt scalafmtAll` before committing.
+- Compiler flags – written by hand in `build.sbt`, not delegated to `sbt-tpolecat`. Since
+  Scala 3.10 a single `-Wall` enables every `-W` setting the compiler has, which was most of
+  what the plugin bought. No `-Werror` yet: add it to CI only, when there is a CI.
 - Error modelling – exceptions surface for now; typed errors when there is something to
   distinguish
 - Effect abstraction – not applicable while the code is plain Scala; revisit with Cats Effect
