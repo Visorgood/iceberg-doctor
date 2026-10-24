@@ -86,7 +86,10 @@ object Warehouse:
             val firstSnapshot = table.currentSnapshot.snapshotId
             appendFiles(table, day = "2026-09-07", count = 3)
             addRefs(table, firstSnapshot)
-          else catalog.createTable(id, schema)
+          else
+            // Discarded so this branch is Unit like the other; otherwise the loop element
+            // type is inferred as `Unit | Table`.
+            val _ = catalog.createTable(id, schema)
     }
 
   /** Commits metadata about data files that do not exist.
@@ -138,11 +141,23 @@ object Warehouse:
     if Files.exists(dir) then
       Using.resource(Files.walk(dir))(_.sorted(Comparator.reverseOrder()).forEach(Files.delete(_)))
 
+  /** Builds a warehouse by hand, for pointing the CLI at.
+    *
+    * Refuses a directory that already holds something. [[populate]] creates its namespaces
+    * unconditionally, so a second run would otherwise fail deep inside Iceberg with
+    * "Namespace already exists". Deleting is left to the caller: this is given a path typed on
+    * a command line, and wiping it unasked is the wrong default.
+    */
   def main(args: Array[String]): Unit =
     args.toList match
       case dir :: Nil =>
-        val path = Files.createDirectories(Path.of(dir))
-        populate(path)
-        println(s"populated $path")
+        val path = Path.of(dir)
+        if Files.exists(path) && Using.resource(Files.list(path))(_.findAny.isPresent) then
+          val shown = path.toString
+          System.err.println(s"$shown already has contents. To rebuild it:  rm -rf $shown")
+          sys.exit(1)
+        populate(Files.createDirectories(path))
+        println(s"populated ${path.toString}")
       case _ =>
-        println("usage: Warehouse <directory>")
+        System.err.println("usage: Warehouse <directory>")
+        sys.exit(1)
