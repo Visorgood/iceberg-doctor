@@ -217,8 +217,19 @@ Things that have already cost time, or will.
 
 Checked when scoping, worth knowing before claiming novelty:
 
-- [TableSleuth](https://github.com/jamesbconner/TableSleuth) — Python, read-only forensics across
-  Parquet, Iceberg and Delta. No writes, no REST catalog yet. Closest neighbour.
+- [TableSleuth](https://github.com/jamesbconner/TableSleuth) — the closest neighbour, and worth
+  reading before claiming anything here is new. Python (PyIceberg 0.11, DuckDB, PyArrow),
+  read-only forensics across Parquet, Iceberg and Delta, delivered as a Textual TUI *and* a
+  FastAPI/Next.js web UI. Catalogs: SQLite, Glue, S3 Tables — **no REST**. No maintenance
+  operations: it recommends, it does not execute.
+  Its Iceberg analysis is ahead of ours on substance — MOR delete-file inspection with read
+  amplification, performance attribution across snapshots, and compaction advice with
+  thresholds of its own. That last part is the deliberate fork in the road: `docs/diagnostics.md`
+  takes the opposite stance, conformance only, every threshold from the table or from Iceberg.
+  **Dormant.** Last code push and last release both 2026-02-24 (v0.6.1); repository created
+  2025-11-15, so roughly three months of work and then silence. 9 stars, 2 forks, 7 open issues
+  with no replies (checked 2026-10-25). Not a moving target — but nine stars for a tool that
+  covers three formats with a TUI and a web UI is also a reading on how big this niche is.
 - `apache/iceberg-go` — official Go CLI. Has expire-snapshots, orphan cleanup, rollback. No
   compaction, no rewrite-manifests.
 - PyIceberg CLI — read-mostly, no maintenance operations.
